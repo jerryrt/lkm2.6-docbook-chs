@@ -1,0 +1,111 @@
+<sect1><title>阻塞进程</title>
+
+	<indexterm><primary>blocking processes</primary></indexterm>
+	<indexterm><primary>processes</primary><secondary>blocking</secondary></indexterm> 
+
+
+		<para>当别人让你做一件你不能马上去做的事时，你会如何反映？如果你是人类的话，而且对方也是人类的话，
+		你只会说：“现在不行，我忙着在。闪开！”但是如果你是一个内核模块而且你被一个进程以同样的问题困扰，
+		你会有另外一个选择。你可以让该进程休眠直到你可以为它服务时。毕竟，这样的情况在内核中时时刻刻都在发生
+		（这就是系统让多进程在单CPU上同时运行的方法）。</para>
+
+		<indexterm><primary>multi-tasking</primary></indexterm>
+		<indexterm><primary>busy</primary></indexterm>
+		<indexterm><primary>module_interruptible_sleep_on</primary></indexterm>
+		<indexterm><primary>interruptible_sleep_on</primary></indexterm>
+		<indexterm><primary>TASK_INTERRUPTIBLE</primary></indexterm>
+		<indexterm><primary>putting processes to sleep</primary></indexterm>
+		<indexterm><primary>sleep</primary><secondary>putting processes to</secondary></indexterm>
+		<indexterm><primary>waking up processes</primary></indexterm>
+		<indexterm><primary>processes</primary><secondary>waking up</secondary></indexterm>
+		<indexterm><primary>multitasking</primary></indexterm>
+		<indexterm><primary>scheduler</primary></indexterm>
+
+		<para>这个内核模块就是一个这样的例子。文件（<filename>/proc/sleep</filename>)）只可以在同一时刻被一个进程打开。
+		如果该文件已经被打开，内核模块将调用函数
+		<function>wait_event_interruptible</function><footnote><para>最方便的保持某个文件被打开的方法是使用命令
+		<command>tail -f</command>打开该文件。</para></footnote>。该函数修改task的状态（task是一个内核中的结构体数据结构，
+		其中保存着对应进程的信息和该进程正在调用的系统调用，如果有的话）为
+		<parameter>TASK_INTERRUPTIBLE</parameter>意味着改进程将不会继续运行直到被唤醒，然后被添加到系统的进程等待队列
+		<structname>WaitQ</structname>中，一个等待打开该文件的队列中。然后，该函数调用系统调度器去切换到另一个不同的
+		但有CPU运算请求的进程。</para>
+
+		<para>当一个进程处理完该文件并且关闭了该文件，<function>module_close</function>就被调用执行了。
+		该函数唤醒所有在等待队列中的进程（还没有只唤醒特定进程的机制）。然后该函数返回，
+		那个刚刚关闭文件的进程得以继续运行。及时的，进程调度器会判定该进程执行已执行完毕，
+		将CPU转让给别的进程。被提供CPU使用权的那个进程就恰好从先前系统调用
+		<function>module_interruptible_sleep_on</function><footnote><para>这就意味着该进程仍然在内核态中，
+		该进程已经调用了<function>open</function>的系统调用，但系统调用却没有返回。
+		在这段时间内该进程将不会得知别人正在使用CPU。</para></footnote>后的地方开始继续执行。
+		它可以设置一个全局变量去通知别的进程该文件已被打开占用了。当别的请求该文件的进程获得CPU时间片时，
+		它们将检测该变量然后返回休眠。</para>
+
+		<indexterm><primary>signal</primary></indexterm>
+		<indexterm><primary>SIGINT</primary></indexterm>
+		<indexterm><primary>module_wake_up</primary></indexterm>
+		<indexterm><primary>module_sleep_on</primary></indexterm>
+		<indexterm><primary>sleep_on</primary></indexterm>
+		<indexterm><primary>ctrl-c</primary></indexterm>
+
+	<para>因此，我们将使用<command>tail -f</command>保持文件在后台被打开着，当另一个进程尝试访问它时 （也是在后台，这样我们就不必切换到另一个虚拟控制台去。）。只要第一个后台进程被用 <command>kill %1</command>杀死，第二个就会被唤醒，它就能访问文件并终止。</para>	
+
+<para>更有趣的是，<function>module_close</function>并不垄断唤醒等待中的请求文件的进程的权力。一个信号，像<keycombo
+		action="simul"><keycap>Ctrl</keycap><keycap>c</keycap></keycombo> (<parameter>SIGINT</parameter>也能够唤醒别的进程
+		<footnote> <para>这是因为我们使用的是<function>module_interruptible_sleep_on</function>。我们也可以使用
+		<function>module_sleep_on</function>，但这样会导致一些十分愤怒的用户，因为他们的<keycombo
+		action="simul"><keycap>Ctrl</keycap><keycap>c</keycap></keycombo>将不起任何作用。</para> </footnote>。
+		在这种情况下，我们想立即返回<parameter>-EINTR</parameter> <indexterm><primary>EINTR</primary></indexterm>。
+		这对用户很重要，举个例子来说，用户可以在某个进程接受到文件前终止该进程。
+
+</para>
+
+		<indexterm><primary>processes</primary><secondary>killing</secondary></indexterm>
+		<indexterm><primary>O_NONBLOCK</primary></indexterm>
+		<indexterm><primary>non-blocking</primary></indexterm>
+		<indexterm><primary>EAGAIN</primary></indexterm>
+		<indexterm><primary>blocking, how to avoid</primary></indexterm> 
+
+		<para>还有一点值得注意。有些时候进程并不愿意休眠，它们要么立即执行它们想做的，
+		要么被告知任务无法进行。这样的进程在打开文件时会使用标志<parameter>O_NONBLOCK</parameter>。
+		在别的进程被阻塞时内核应该做出的响应是返回错误代码<parameter>-EAGAIN</parameter>，像在本例中对该文件的请求的进程。程序
+		<command>cat_noblock</command>，在本章的源代码目录下可以找到，就能够使用标志位
+		<parameter>O_NONBLOCK</parameter>打开文件。</para>
+<screen>
+hostname:~/lkmpg-examples/09-BlockingProcesses# insmod sleep.ko
+hostname:~/lkmpg-examples/09-BlockingProcesses# cat_noblock /proc/sleep
+Last input:
+hostname:~/lkmpg-examples/09-BlockingProcesses# tail -f /proc/sleep &
+Last input:
+Last input:
+Last input:
+Last input:
+Last input:
+Last input:
+Last input:
+tail: /proc/sleep: file truncated
+[1] 6540
+hostname:~/lkmpg-examples/09-BlockingProcesses# cat_noblock /proc/sleep
+Open would block
+hostname:~/lkmpg-examples/09-BlockingProcesses# kill %1
+[1]+ Terminated               tail -f /proc/sleep
+hostname:~/lkmpg-examples/09-BlockingProcesses# cat_noblock /proc/sleep
+Last input:
+hostname:~/lkmpg-examples/09-BlockingProcesses#
+</screen>
+
+		<indexterm><primary>source file</primary><secondary>sleep.c</secondary></indexterm>
+
+
+<example><title>sleep.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/09-BlockingProcesses/sleep.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+<example><title>cat_noblock.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/09-BlockingProcesses/cat_noblock.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

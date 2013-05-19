@@ -1,0 +1,111 @@
+<sect1><title>关于 /proc 文件系统</title>
+
+	<indexterm><primary><filename role=directory>/proc</filename> filesystem</primary></indexterm>
+	<indexterm><primary>filesystem</primary><secondary><filename role=directory>/proc</filename></secondary></indexterm>
+
+	<para>在Linux中有另一种内核和内核模块向进程传递信息的方法，那就是通过
+	<filename role="directory">/proc</filename>文件系统。它原先设计的目的是为查看进程信息
+	提供一个方便的途径，现在它被用来向用户提供各种内核中被感兴趣的内容。像文件
+	<filename>/proc/modules</filename>里是已加载模块的列表，文件<filename>/proc/meminfo</filename>
+	里是关于内存使用的信息。</para>
+
+	<indexterm><primary><filename>/proc/modules</filename></primary></indexterm>
+	<indexterm><primary><filename>/proc/meminfo</filename></primary></indexterm>
+
+	<para>使用 proc 文件系统的方法同使用设备文件很相似。你建立一个包含
+	<filename role="directory">/proc</filename>文件需要的所有信息的结构体，
+	这其中包括处理各种事务的函数的指针（在我们的例子中，只用到从<filename
+	role="directory">/proc</filename>文件读取信息的函数）。然后在<function>init_module</function>
+	时向内核注册这个结构体，在<function>cleanup_module</function>时注销这个结构体。</para>
+
+	<para>我们使用<function>proc_register_dynamic</function><footnote><para>这是在2.0版本中的做法，
+	在版本2.2中，当我们把inode设为0时，就已经这样自动处理了。</para></footnote>的原因是我们不用去设置inode，而留给
+	内核去自动分配从而避免系统冲突错误。 普通的文件系统是建立在磁盘上的，而 /proc 的文件仅仅是建立在内存中的。
+	在前种情况中，inode的数值是一个指向存储在磁盘某个位置的文件的索引节点（inode就是index-node的缩写）。
+	该索引节点储存着文件的信息，像文件的权限；同时还有在哪儿能找到文件中的数据。</para>
+
+	<indexterm><primary><function>proc_register_dynamic</function></primary></indexterm>
+	<indexterm><primary><function>proc_register</function></primary></indexterm>
+	<indexterm><primary>inode</primary></indexterm>
+
+	<para>因为我们无法得知该文件是被打开的或关闭的，我们也无法去使用宏
+	<varname>try_module_get</varname>和<varname>try_module_put</varname>在下面的模块中，
+	我们无法避免该文件被打开而同时模块又被卸载。
+
+<para>这里有一个使用<filename>/proc</filename>文件的简单例子。这是<filename>/proc</filename>文件系统的HelloWorld。分为三个部分： 在<function>init_module<function>函数中创建一个 <filename>/proc/helloworld</filename> 文件，当 <filename>/proc/helloworld</filename> 在收回函数procfs_read中被读取时返回一个 值（和一个缓冲区），在<function>cleanup_module</function>函数中删除 <filename>/proc/helloworld</filename> 文件。</para>
+
+<para>当模块被加载时，用<function>create_proc_entry</function>函数创建 <filename>/proc/helloworld</filename> 文件。返回值是一个<varname>struct proc_dir_entry *</varname>，它将被用来 配置 <filename>/proc/helloworld</filename> 文件（比如，文件的所有者）。空返回值表示创建失败。
+</para>
+<para>每当<filename>/proc/helloworld</filename> 文件被读取时，<function>procfs_read</function>函数都会被调用。这个函数的其中两个参数非常重要： 缓冲区（第一个参数）和偏移量（第三个）。缓冲区的内容将会返回给读取它的应用程序（比如<command>cat</command>命令）。 偏移量是文件中的当前位置。如果这个函数的返回值不是空，它还会被再调用一次。当心这个函数， 如果它从不返回零，这个读取函数将会永无止境地被调用。
+</para>
+<screen>
+% cat /proc/helloworld
+HelloWorld!
+</screen>
+<example><title>procfs1.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/05-TheProcFileSystem/procfs1.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+</sect1>
+
+<sect1><title>读写 /proc 文件</title>
+<para>我们已经看到<filename>/proc</filename>文件的一个很简单的例子，我们只是读取<filename>/proc/helloworld</filename>文件。也有可能写<filename>/proc</filename>文件。 它和读取的工作方式一样，当<filename>/proc</filename>被写入时调用一个函数。但是和读取有一点小小的区别，数据来自用户，所以 你不得不把数据从用户空间输入到内核空间（使用<function>copy_from_user</function>或<function>get_user</function>）。</para>
+
+<para>
+使用<function>copy_from_user</function>或<function>get_user</function>的理由是Linux的内存空间（在Intel构架上如此，其它处理器上可能不同）是分段的。 这就意味着指针自身并不是指向一个确实的物理内存地址，而只是分段中的一个地址，而且你需要知道哪个段 将来是可用的。其中内核本身有一个分段，每个进程也都有一个。
+</para>
+<para>
+进程可访问的分段只有它自己的，所以，当编写作为进程运行的普通程序时，没必要担心分段的问题，系统会自动处理 好它。但是，当一块内存缓冲区的内容需要在当前运行的进程和内核之间传递时，内核函数接收的是一个指向在进程段中 的缓冲区的指针。宏<function>put_user</function>和<function>get_user</function>允许你访问那块内存。这些函数只处理一个字符，你可以用<function>copy_to_user</function> 和<function>copy_from_user</function>处理多个字符。因为缓冲区在内核空间（在读写函数中），对于写函数你需要输入数据，因为 它来自用户空间，但对于读函数不然，因为数据已经在内核空间了。
+
+</para>
+<example><title>procfs2.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/05-TheProcFileSystem/procfs2.c" format="linespecific"/></inlinegraphic></programlisting></example>
+</sect1>
+<sect1><title>用标准文件系统管理 /proc 文件</title>
+<para>
+我们已经知道如何用<filename>/proc</filename>接口读写一个<filename>/proc</filename>文件。但是也可能使用inode来管理<filename>/proc</filename>文件。主要的好处是 使用高级的函数，像<function>permission</function>。
+</para>
+<para>
+在Linux中有一种标准的注册文件系统的机制。既然每种文件系统都必须有处理文件 索引节点inode和文件操作的函数<footnote><para>两者的区别是文件的操作针对具体的，实在的文件， 而文件索引节点的操作是针对文件的引用，像建立文件的连接等。</para></footnote>, 那就一定有种结构体去存放这些函数的指针。这就是结构体<type>struct inode_operations</type>， 它其中又包含一个指向结构体<type>struct file_operations</type>的指针。在<filename> /proc</filename> 文件系统中， 当我们需要注册一个新文件时，我们被允许指定哪一个<type>struct inode_operations</type> 结构体将被使用去访问它。这就是我们将使用的机制，用包含结构体 <type>struct inode_operations</type>指针的结构体<type>struct file_operations</type> 来指向我们的<function>procfs_read</function>和<function>procfs_write</function>函数。
+</para>
+<para>
+在这儿另一件有趣的事就是<function>module_permission</function>函数了。该函数在每个进程想要对 /proc文件系统内的文件操作时被调用，它来决定是否操作被允许。 目前它只是对操作和当前用户的UID（可以在<varname>current</varname>中获得， 一个指向包含当前运行进程信息的结构体的指针）进行判断，但它可以也把其它的东西包括进来， 像还有哪些别的进程在对该文件进行操作，当前的时间，或是我们最后接收到的输入。 
+</para>
+<para>
+需要注意的是“读”和“写”的含义在内核中是反过来的。“读”意味着输出，而“写”意味着输入。 这是从用户的角度来看待问题的。如果一个进程只能从内核的“输出”获得输入， 而内核也是从进程的输出中得到“输入”的。
+</para>
+
+<example><title>procfs3.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/05-TheProcFileSystem/procfs3.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+<para>还需要更多的关于procfs的例子？我要提醒你的是：第一，有消息说也许不久procfs将被sysfs取代；第二， 如果你真的很想多了解些procfs，你可以参考路径<filename role="directory">linux/Documentation/DocBook/ </filename>下的 那些技术性的文档。在内核代码树根目录下使用 <command>make help</command> 来获得如何将这些文档转化为你偏好的格式，例如： <command>make htmldocs</command> 。如果你要为内核加入一些你的文档，你也应该考虑这样做。</para>
+</sect1>
+<sect1><title>使用seq_file管理 /proc 文件</title>
+<para>
+正如我们看到的，写入一个<filename>/proc</filename>文件可能太“复杂”了。所以为了帮助人们写<filename>/proc</filename>文件，有一个名为<function>seq_file</function>的 <varname>API</varname>帮助人们格式化<filename>/proc</filename>文件作为输出。它是基于序列的，由三个函数组成：<function>start()</function> ，<function>next()</function>和<function>stop()</function>。 当用户读取<filename>/proc</filename>文件时，<function>seq_file</function> <varname>API</varname>开启一个序列。
+</para>
+
+<para>
+一个序列以调用<function>start()</function>函数开始。如果返回一个非<varname>NULL</varname>，函数 <function>next()</function>被调用。这个函数是一个迭代程序，目标是遍历所有数据。 每次调用<function>next()</function>时，函数<function>show()</function> 也会被调用。它在用户读取的缓冲区中写入数据。函数<function>next()</function>被调用直到 它返回<varname>NULL</varname>。当<function>next()</function>返回<varname>NULL</varname>时，函数<function>stop()</function> 接着被调用，序列结束。
+</para>
+<para>
+当心：当一个序列结束时，另一个又被开启。这就是说在函数<function>stop()</function> 的末尾，<function>start()</function>函数被再次调用。这个循环在<function>start()</function> 函数返回<varname>NULL</varname>时终止。你可以在下图中看到这个的图解。
+</para>
+ <imageobject>
+    <imagedata fileref="seq_file.png"> 
+  </imageobject>
+</mediaobject>
+<para>
+<function>seq_file</function>为<function>file_operations</function>提供了基本的函数，比如<function>seq_read</function>， <function>seq_lseek</function>和其它一些。当然了，你也可以使用前面例子中同样的方法。
+</para>
+
+<example><title>procfs4.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/05-TheProcFileSystem/procfs4.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+<para>如果你想要更多信息，你可以查看下面的网页：</para>
+
+<ulink url="http://lwn.net/Articles/22355/">
+
+<ulink url="http://www.kernelnewbies.org/documents/seq_file_howto.txt">
+
+<para>你也可以阅读Linux内核中<filename>fs/seq_file.c</filename>的源代码。</para>
+</sect1>
+
+<!--
+vim:textwidth=128
+-->

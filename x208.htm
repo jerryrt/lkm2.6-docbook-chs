@@ -1,0 +1,266 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>编译内核模块</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="PREVIOUS"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="NEXT"
+TITLE="Hello World (part 2)"
+HREF="x241.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c146.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 2. Hello World</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x241.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN208"
+>编译内核模块</A
+></H1
+><A
+NAME="AEN210"
+></A
+><P
+>内核模块在用gcc编译时需要使用特定的参数。另外，一些宏同样需要定义。 这是因为在编译成可执行文件和内核模块时，
+	内核头文件起的作用是不同的。 以往的内核版本需要我们去在Makefile中手动设置这些设定。尽管这些Makefile是按目录分层次
+	安排的，但是这其中有许多多余的重复并导致代码树大而难以维护。
+
+	幸运的是，一种称为kbuild的新方法被引入，现在外部的可加载内核模块的编译的方法已经同内核编译统一起来。想了解更多的编
+	译非内核代码树中的模块(就像我们将要编写的)请参考帮助文件<TT
+CLASS="FILENAME"
+>linux/Documentation/kbuild/modules.txt</TT
+>。
+	</P
+><P
+>现在让我们看一个编译名字叫做<TT
+CLASS="FILENAME"
+>hello-1.c</TT
+>的模块的简单的Makefile文件：</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN216"
+></A
+><P
+><B
+>Example 2-2. 一个基本的Makefile</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>obj-m += hello-1.o
+</PRE
+></DIV
+><P
+>现在你可以通过执行命令<B
+CLASS="COMMAND"
+> make -C /usr/src/linux-`uname -r` SUBDIRS=$PWD modules </B
+>编译模块。
+	你应该得到同下面类似的屏幕输出：</P
+><PRE
+CLASS="SCREEN"
+>[root@pcsenonsrv test_module]# make -C /usr/src/linux-`uname -r` SUBDIRS=$PWD modules
+make: Entering directory `/usr/src/linux-2.6.x
+  CC [M]  /root/test_module/hello-1.o
+  Building modules, stage 2.
+  MODPOST
+  CC      /root/test_module/hello-1.mod.o
+  LD [M]  /root/test_module/hello-1.ko
+make: Leaving directory `/usr/src/linux-2.6.x
+	</PRE
+><P
+>请注意2.6的内核现在引入一种新的内核模块命名规范：内核模块现在使用<TT
+CLASS="FILENAME"
+>.ko</TT
+>的文件后缀(代替 
+	以往的<TT
+CLASS="FILENAME"
+>.o</TT
+>后缀)，这样内核模块就可以同普通的目标文件区别开。这样做的理由是它们包含一个附加的.modinfo段， 那里存放着关于模块的附加信息。我们将马上看到这些信息的好处。</P
+><P
+>使用<B
+CLASS="COMMAND"
+>modinfo hello-*.ko</B
+>来看看它是什么样的信息。
+<PRE
+CLASS="SCREEN"
+>hostname:~/lkmpg-examples/02-HelloWorld# modinfo hello-1.ko
+filename:       hello-1.ko
+vermagic:       2.6.11 preempt PENTIUMII 4KSTACKS gcc-3.3
+depends:</PRE
+></P
+><P
+>到目前为止，没什么惊人的。一旦我们对后面的一个例子，hello-5.ko，使用modinfo，那将会改变。</P
+><PRE
+CLASS="SCREEN"
+>hostname:~/lkmpg-examples/02-HelloWorld# modinfo hello-5.ko
+filename:       hello-5.ko
+license:        GPL
+author:         Peter Jay Salzman
+vermagic:       2.6.11 preempt PENTIUMII 4KSTACKS gcc-3.3
+depends:
+parm:           myintArray:An array of integers (array of int)
+parm:           mystring:A character string (charp)
+parm:           mylong:A long integer (long)
+parm:           myint:An integer (int)
+parm:           myshort:A short integer (short)
+hostname:~/lkmpg-examples/02-HelloWorld#</PRE
+><P
+>这里有很多有用的信息去看。报告错误的作者信息，许可证信息，甚至对它接受参数的简短描述。</P
+>更详细的文档请参考
+	<TT
+CLASS="FILENAME"
+>linux/Documentation/kbuild/makefiles.txt</TT
+>。在研究Makefile之前请确认你已经参考了这些文档。
+	
+
+	<P
+>现在是使用<B
+CLASS="COMMAND"
+>insmod ./hello-1.ko</B
+>命令加载该模块的时候了(忽略任何你看到的关于内核污染的输出
+	显示，我们将在以后介绍相关内容)。</P
+><P
+>	所有已经被加载的内核模块都罗列在文件<TT
+CLASS="FILENAME"
+>/proc/modules</TT
+>中。cat一下这个文件看一下你的模块是否真的
+	成为内核的一部分了。如果是，祝贺你！你现在已经是内核模块的作者了。当你的新鲜劲过去后，使用命令
+	<B
+CLASS="COMMAND"
+>rmmod hello-1</B
+>.卸载模块。再看一下<TT
+CLASS="FILENAME"
+>/var/log/messages</TT
+>文件的内容是否有相关的日志内容。
+	</P
+><P
+>这儿是另一个练习。看到了在声明
+	<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>上的注释吗? 改变返回值非零，重新编译再加载，发生了什么？</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x241.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Hello World</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Hello World (part 2)</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

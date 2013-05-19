@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>让你的键盘指示灯闪起来</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Replacing Printks"
+HREF="c1175.htm"><LINK
+REL="PREVIOUS"
+TITLE="Replacing Printks"
+HREF="c1175.htm"><LINK
+REL="NEXT"
+TITLE="Scheduling Tasks"
+HREF="c1225.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c1175.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 10. Replacing Printks</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1225.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN1210"
+>让你的键盘指示灯闪起来</A
+></H1
+><A
+NAME="AEN1212"
+></A
+><P
+>你也许想让你的模块更直接的同外界交流，你的键盘指示灯就是一个不错的选择。它可以及时显示模块的工作状态，
+	吸引你的注意，并且它们不许要任何设置，使用起来也不像向终端或磁盘写入信息那么危险。
+	</P
+><P
+>	下面的这个模块代码演示了一个相当小的模块：当被加载入内核时，键盘指示灯就不停的闪烁，直到它被卸载。
+	</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN1217"
+></A
+><P
+><B
+>Example 10-2. kbleds.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/* 
+ *  kbleds.c - Blink keyboard leds until the module is unloaded.
+ */
+
+#include &#60;linux/module.h&#62;
+#include &#60;linux/config.h&#62;
+#include &#60;linux/init.h&#62;
+#include &#60;linux/tty.h&#62;		/* For fg_console, MAX_NR_CONSOLES */
+#include &#60;linux/kd.h&#62;		/* For KDSETLED */
+#include &#60;linux/console_struct.h&#62;	/* For vc_cons */
+
+MODULE_DESCRIPTION("Example module illustrating the use of Keyboard LEDs.");
+MODULE_AUTHOR("Daniele Paolo Scarpazza");
+MODULE_LICENSE("GPL");
+
+struct timer_list my_timer;
+struct tty_driver *my_driver;
+char kbledstatus = 0;
+
+#define BLINK_DELAY   HZ/5
+#define ALL_LEDS_ON   0x07
+#define RESTORE_LEDS  0xFF
+
+/*
+ * Function my_timer_func blinks the keyboard LEDs periodically by invoking
+ * command KDSETLED of ioctl() on the keyboard driver. To learn more on virtual 
+ * terminal ioctl operations, please see file:
+ *     /usr/src/linux/drivers/char/vt_ioctl.c, function vt_ioctl().
+ *
+ * The argument to KDSETLED is alternatively set to 7 (thus causing the led 
+ * mode to be set to LED_SHOW_IOCTL, and all the leds are lit) and to 0xFF
+ * (any value above 7 switches back the led mode to LED_SHOW_FLAGS, thus
+ * the LEDs reflect the actual keyboard status).  To learn more on this, 
+ * please see file:
+ *     /usr/src/linux/drivers/char/keyboard.c, function setledstate().
+ * 
+ */
+
+static void my_timer_func(unsigned long ptr)
+{
+	int *pstatus = (int *)ptr;
+
+	if (*pstatus == ALL_LEDS_ON)
+		*pstatus = RESTORE_LEDS;
+	else
+		*pstatus = ALL_LEDS_ON;
+
+	(my_driver-&#62;ioctl) (vc_cons[fg_console].d-&#62;vc_tty, NULL, KDSETLED,
+			    *pstatus);
+
+	my_timer.expires = jiffies + BLINK_DELAY;
+	add_timer(&#38;my_timer);
+}
+
+static int __init kbleds_init(void)
+{
+	int i;
+
+	printk(KERN_INFO "kbleds: loading\n");
+	printk(KERN_INFO "kbleds: fgconsole is %x\n", fg_console);
+	for (i = 0; i &#60; MAX_NR_CONSOLES; i++) {
+		if (!vc_cons[i].d)
+			break;
+		printk(KERN_INFO "poet_atkm: console[%i/%i] #%i, tty %lx\n", i,
+		       MAX_NR_CONSOLES, vc_cons[i].d-&#62;vc_num,
+		       (unsigned long)vc_cons[i].d-&#62;vc_tty);
+	}
+	printk(KERN_INFO "kbleds: finished scanning consoles\n");
+
+	my_driver = vc_cons[fg_console].d-&#62;vc_tty-&#62;driver;
+	printk(KERN_INFO "kbleds: tty driver magic %x\n", my_driver-&#62;magic);
+
+	/*
+	 * Set up the LED blink timer the first time
+	 */
+	init_timer(&#38;my_timer);
+	my_timer.function = my_timer_func;
+	my_timer.data = (unsigned long)&#38;kbledstatus;
+	my_timer.expires = jiffies + BLINK_DELAY;
+	add_timer(&#38;my_timer);
+
+	return 0;
+}
+
+static void __exit kbleds_cleanup(void)
+{
+	printk(KERN_INFO "kbleds: unloading...\n");
+	del_timer(&#38;my_timer);
+	(my_driver-&#62;ioctl) (vc_cons[fg_console].d-&#62;vc_tty, NULL, KDSETLED,
+			    RESTORE_LEDS);
+}
+
+module_init(kbleds_init);
+module_exit(kbleds_cleanup);</PRE
+></DIV
+><P
+>	如果上面的方法都无法满足你调试的需要，你就可能需要其它的技巧了。还记得那个在<B
+CLASS="COMMAND"
+> make menuconfig </B
+>
+	时的CONFIG_LL_DEBUG参数吗？如果你激活该选项，你就可以获得对串口的底层操纵。如果这仍然不够爽，你还可以对
+	<TT
+CLASS="FILENAME"
+>kernel/printk.c</TT
+>或其它的基本的系统底层调用打补丁来使用printascii，从而可以通过串口跟踪
+	内核的每步动作。如果你的架构不支持上面的例子却有一个标准的串口，这可能应该是你首先应该考虑的了。通过网络上的
+	终端调试同样值得尝试。
+	</P
+><P
+>	尽管有很多关于如何调试的技巧，但我要提醒的是任何调试都会代码带来影响。加入调试代码足以导致原始代码产生bug的
+	条件的消失，所以尽可能少的加入调试代码并且确保它们不出现在成熟的代码中。
+	</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c1175.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1225.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Replacing Printks</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c1175.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Scheduling Tasks</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

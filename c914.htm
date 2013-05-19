@@ -1,0 +1,827 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Talking To Device Files</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="Using /proc For Input"
+HREF="c903.htm"><LINK
+REL="NEXT"
+TITLE="System Calls"
+HREF="c998.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c903.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c998.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN914"
+></A
+>Chapter 7. Talking To Device Files</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN916"
+>与设备文件对话 (writes and IOCTLs)</A
+></H1
+><A
+NAME="AEN918"
+></A
+><A
+NAME="AEN920"
+></A
+><A
+NAME="AEN923"
+></A
+><P
+>设备文件是用来代表相对应的硬件设备。绝大多数的硬件设备是用来进行输出和输入操作的，
+	所以在内核中肯定有内核从进程中获得发送到设备的输出的机制。这是通过打开一个设备文件然后
+	向其中进行写操作来实现的，如同对普通文件的写操作。在下面的的例子中，这是通过
+	<CODE
+CLASS="FUNCTION"
+>device_write</CODE
+>实现的。</P
+><P
+>但这并不总是够用。设想你有一个通过串口连接的调制解调器(即使你使用的是内置调制解调器，
+	对于CPU来说同样也是通过连接在串口上来实现工作的）。通常我们通过打开一个设备文件向调制解调器
+	发送信息（将要通过通信线路传输的指令或数据）或读取信息（从通信线路中返回的响应指令或数据）。
+	但是，我们如何设置同串口对话的速率，也就是向串口传输数据的速率这个问题仍然没有解决。</P
+><A
+NAME="AEN929"
+></A
+><A
+NAME="AEN931"
+></A
+><P
+>解决之道是在Unix系统中的函数<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>(Input Output ConTroL的简写)。
+	每个设备可以有自己的<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>命令，通过读取<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>'s
+	可以从进程中向内核发送信息，或写<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>'s向进程返回信息
+	<A
+NAME="AEN938"
+HREF="#FTN.AEN938"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>，或者两者都是，或都不是。函数<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>
+	调用时需要三个参数：合适的设备文件的文件描述符，ioctl号，和一个可以被一个任务使用来
+	传递任何东西的long类型的参数<A
+NAME="AEN941"
+HREF="#FTN.AEN941"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+></P
+><P
+>ioctl号是反映主设备号，ioctl的种类，对应的命令和参数类型的数字。它通常是通过在头文件中宏调用
+	(<CODE
+CLASS="VARNAME"
+>_IO</CODE
+>, <CODE
+CLASS="VARNAME"
+>_IOR</CODE
+>, <CODE
+CLASS="VARNAME"
+>_IOW</CODE
+>
+	或<CODE
+CLASS="VARNAME"
+>_IOWR</CODE
+>，取决于其种类)来建立的。该头文件应该被使用
+	<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>的用户程序包含（这样它们就可以生成正确的<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>'s）
+	和内核驱动模块包含（这样模块才能理解它）。在下面的例子中，头文件为<TT
+CLASS="FILENAME"
+>chardev.h</TT
+>，源程序为<CODE
+CLASS="FUNCTION"
+>ioctl.c</CODE
+>。</P
+><A
+NAME="AEN952"
+></A
+><A
+NAME="AEN954"
+></A
+><A
+NAME="AEN956"
+></A
+><A
+NAME="AEN958"
+></A
+><P
+>即使你只想在自己的模块中使用<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>s，你最好还是接收正式的
+	<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>标准，这样当你意外的使用别人的<CODE
+CLASS="FUNCTION"
+>ioctl</CODE
+>s，
+	或别人使用你的时，你会知道有错误发生。详情参见内核代码目录树下的文件
+	<TT
+CLASS="FILENAME"
+>Documentation/ioctl-number.txt</TT
+>.</P
+><A
+NAME="AEN965"
+></A
+><A
+NAME="AEN967"
+></A
+><A
+NAME="AEN970"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN973"
+></A
+><P
+><B
+>Example 7-1. chardev.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  chardev.c - Create an input/output character device
+ */
+
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module */
+#include &#60;linux/fs.h&#62;
+#include &#60;asm/uaccess.h&#62;	/* for get_user and put_user */
+
+#include "chardev.h"
+#define SUCCESS 0
+#define DEVICE_NAME "char_dev"
+#define BUF_LEN 80
+
+/* 
+ * Is the device open right now? Used to prevent
+ * concurent access into the same device 
+ */
+static int Device_Open = 0;
+
+/* 
+ * The message the device will give when asked 
+ */
+static char Message[BUF_LEN];
+
+/* 
+ * How far did the process reading the message get?
+ * Useful if the message is larger than the size of the
+ * buffer we get to fill in device_read. 
+ */
+static char *Message_Ptr;
+
+/* 
+ * This is called whenever a process attempts to open the device file 
+ */
+static int device_open(struct inode *inode, struct file *file)
+{
+#ifdef DEBUG
+	printk("device_open(%p)\n", file);
+#endif
+
+	/* 
+	 * We don't want to talk to two processes at the same time 
+	 */
+	if (Device_Open)
+		return -EBUSY;
+
+	Device_Open++;
+	/*
+	 * Initialize the message 
+	 */
+	Message_Ptr = Message;
+	try_module_get(THIS_MODULE);
+	return SUCCESS;
+}
+
+static int device_release(struct inode *inode, struct file *file)
+{
+#ifdef DEBUG
+	printk("device_release(%p,%p)\n", inode, file);
+#endif
+
+	/* 
+	 * We're now ready for our next caller 
+	 */
+	Device_Open--;
+
+	module_put(THIS_MODULE);
+	return SUCCESS;
+}
+
+/* 
+ * This function is called whenever a process which has already opened the
+ * device file attempts to read from it.
+ */
+static ssize_t device_read(struct file *file,	/* see include/linux/fs.h   */
+			   char __user * buffer,	/* buffer to be
+							 * filled with data */
+			   size_t length,	/* length of the buffer     */
+			   loff_t * offset)
+{
+	/* 
+	 * Number of bytes actually written to the buffer 
+	 */
+	int bytes_read = 0;
+
+#ifdef DEBUG
+	printk("device_read(%p,%p,%d)\n", file, buffer, length);
+#endif
+
+	/* 
+	 * If we're at the end of the message, return 0
+	 * (which signifies end of file) 
+	 */
+	if (*Message_Ptr == 0)
+		return 0;
+
+	/* 
+	 * Actually put the data into the buffer 
+	 */
+	while (length &#38;&#38; *Message_Ptr) {
+
+		/* 
+		 * Because the buffer is in the user data segment,
+		 * not the kernel data segment, assignment wouldn't
+		 * work. Instead, we have to use put_user which
+		 * copies data from the kernel data segment to the
+		 * user data segment. 
+		 */
+		put_user(*(Message_Ptr++), buffer++);
+		length--;
+		bytes_read++;
+	}
+
+#ifdef DEBUG
+	printk("Read %d bytes, %d left\n", bytes_read, length);
+#endif
+
+	/* 
+	 * Read functions are supposed to return the number
+	 * of bytes actually inserted into the buffer 
+	 */
+	return bytes_read;
+}
+
+/* 
+ * This function is called when somebody tries to
+ * write into our device file. 
+ */
+static ssize_t
+device_write(struct file *file,
+	     const char __user * buffer, size_t length, loff_t * offset)
+{
+	int i;
+
+#ifdef DEBUG
+	printk("device_write(%p,%s,%d)", file, buffer, length);
+#endif
+
+	for (i = 0; i &#60; length &#38;&#38; i &#60; BUF_LEN; i++)
+		get_user(Message[i], buffer + i);
+
+	Message_Ptr = Message;
+
+	/* 
+	 * Again, return the number of input characters used 
+	 */
+	return i;
+}
+
+/* 
+ * This function is called whenever a process tries to do an ioctl on our
+ * device file. We get two extra parameters (additional to the inode and file
+ * structures, which all device functions get): the number of the ioctl called
+ * and the parameter given to the ioctl function.
+ *
+ * If the ioctl is write or read/write (meaning output is returned to the
+ * calling process), the ioctl call returns the output of this function.
+ *
+ */
+int device_ioctl(struct inode *inode,	/* see include/linux/fs.h */
+		 struct file *file,	/* ditto */
+		 unsigned int ioctl_num,	/* number and param for ioctl */
+		 unsigned long ioctl_param)
+{
+	int i;
+	char *temp;
+	char ch;
+
+	/* 
+	 * Switch according to the ioctl called 
+	 */
+	switch (ioctl_num) {
+	case IOCTL_SET_MSG:
+		/* 
+		 * Receive a pointer to a message (in user space) and set that
+		 * to be the device's message.  Get the parameter given to 
+		 * ioctl by the process. 
+		 */
+		temp = (char *)ioctl_param;
+
+		/* 
+		 * Find the length of the message 
+		 */
+		get_user(ch, temp);
+		for (i = 0; ch &#38;&#38; i &#60; BUF_LEN; i++, temp++)
+			get_user(ch, temp);
+
+		device_write(file, (char *)ioctl_param, i, 0);
+		break;
+
+	case IOCTL_GET_MSG:
+		/* 
+		 * Give the current message to the calling process - 
+		 * the parameter we got is a pointer, fill it. 
+		 */
+		i = device_read(file, (char *)ioctl_param, 99, 0);
+
+		/* 
+		 * Put a zero at the end of the buffer, so it will be 
+		 * properly terminated 
+		 */
+		put_user('\0', (char *)ioctl_param + i);
+		break;
+
+	case IOCTL_GET_NTH_BYTE:
+		/* 
+		 * This ioctl is both input (ioctl_param) and 
+		 * output (the return value of this function) 
+		 */
+		return Message[ioctl_param];
+		break;
+	}
+
+	return SUCCESS;
+}
+
+/* Module Declarations */
+
+/* 
+ * This structure will hold the functions to be called
+ * when a process does something to the device we
+ * created. Since a pointer to this structure is kept in
+ * the devices table, it can't be local to
+ * init_module. NULL is for unimplemented functions. 
+ */
+struct file_operations Fops = {
+	.read = device_read,
+	.write = device_write,
+	.ioctl = device_ioctl,
+	.open = device_open,
+	.release = device_release,	/* a.k.a. close */
+};
+
+/* 
+ * Initialize the module - Register the character device 
+ */
+int init_module()
+{
+	int ret_val;
+	/* 
+	 * Register the character device (atleast try) 
+	 */
+	ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &#38;Fops);
+
+	/* 
+	 * Negative values signify an error 
+	 */
+	if (ret_val &#60; 0) {
+		printk("%s failed with %d\n",
+		       "Sorry, registering the character device ", ret_val);
+		return ret_val;
+	}
+
+	printk("%s The major device number is %d.\n",
+	       "Registeration is a success", MAJOR_NUM);
+	printk("If you want to talk to the device driver,\n");
+	printk("you'll have to create a device file. \n");
+	printk("We suggest you use:\n");
+	printk("mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
+	printk("The device file name is important, because\n");
+	printk("the ioctl program assumes that's the\n");
+	printk("file you'll use.\n");
+
+	return 0;
+}
+
+/* 
+ * Cleanup - unregister the appropriate file from /proc 
+ */
+void cleanup_module()
+{
+	int ret;
+
+	/* 
+	 * Unregister the device 
+	 */
+	ret = unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+
+	/* 
+	 * If there's an error, report it 
+	 */
+	if (ret &#60; 0)
+		printk("Error in module_unregister_chrdev: %d\n", ret);
+}</PRE
+></DIV
+><A
+NAME="AEN977"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN981"
+></A
+><P
+><B
+>Example 7-2. chardev.h</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  chardev.h - the header file with the ioctl definitions.
+ *
+ *  The declarations here have to be in a header file, because
+ *  they need to be known both to the kernel module
+ *  (in chardev.c) and the process calling ioctl (ioctl.c)
+ */
+
+#ifndef CHARDEV_H
+#define CHARDEV_H
+
+#include &#60;linux/ioctl.h&#62;
+
+/* 
+ * The major device number. We can't rely on dynamic 
+ * registration any more, because ioctls need to know 
+ * it. 
+ */
+#define MAJOR_NUM 100
+
+/* 
+ * Set the message of the device driver 
+ */
+#define IOCTL_SET_MSG _IOR(MAJOR_NUM, 0, char *)
+/*
+ * _IOR means that we're creating an ioctl command 
+ * number for passing information from a user process
+ * to the kernel module. 
+ *
+ * The first arguments, MAJOR_NUM, is the major device 
+ * number we're using.
+ *
+ * The second argument is the number of the command 
+ * (there could be several with different meanings).
+ *
+ * The third argument is the type we want to get from 
+ * the process to the kernel.
+ */
+
+/* 
+ * Get the message of the device driver 
+ */
+#define IOCTL_GET_MSG _IOR(MAJOR_NUM, 1, char *)
+/* 
+ * This IOCTL is used for output, to get the message 
+ * of the device driver. However, we still need the 
+ * buffer to place the message in to be input, 
+ * as it is allocated by the process.
+ */
+
+/* 
+ * Get the n'th byte of the message 
+ */
+#define IOCTL_GET_NTH_BYTE _IOWR(MAJOR_NUM, 2, int)
+/* 
+ * The IOCTL is used for both input and output. It 
+ * receives from the user a number, n, and returns 
+ * Message[n]. 
+ */
+
+/* 
+ * The name of the device file 
+ */
+#define DEVICE_FILE_NAME "char_dev"
+
+#endif</PRE
+></DIV
+><A
+NAME="AEN985"
+></A
+><A
+NAME="AEN987"
+></A
+><A
+NAME="AEN990"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN994"
+></A
+><P
+><B
+>Example 7-3. ioctl.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  ioctl.c - the process to use ioctl's to control the kernel module
+ *
+ *  Until now we could have used cat for input and output.  But now
+ *  we need to do ioctl's, which require writing our own process.
+ */
+
+/* 
+ * device specifics, such as ioctl numbers and the
+ * major device file. 
+ */
+#include "chardev.h"
+
+#include &#60;fcntl.h&#62;		/* open */
+#include &#60;unistd.h&#62;		/* exit */
+#include &#60;sys/ioctl.h&#62;		/* ioctl */
+
+/* 
+ * Functions for the ioctl calls 
+ */
+
+void ioctl_set_msg(int file_desc, char *message)
+{
+	int ret_val;
+
+	ret_val = ioctl(file_desc, IOCTL_SET_MSG, message);
+
+	if (ret_val &#60; 0) {
+		printf("ioctl_set_msg failed:%d\n", ret_val);
+		exit(-1);
+	}
+}
+
+void ioctl_get_msg(int file_desc)
+{
+	int ret_val;
+	char message[100];
+
+	/* 
+	 * Warning - this is dangerous because we don't tell
+	 * the kernel how far it's allowed to write, so it
+	 * might overflow the buffer. In a real production
+	 * program, we would have used two ioctls - one to tell
+	 * the kernel the buffer length and another to give
+	 * it the buffer to fill
+	 */
+	ret_val = ioctl(file_desc, IOCTL_GET_MSG, message);
+
+	if (ret_val &#60; 0) {
+		printf("ioctl_get_msg failed:%d\n", ret_val);
+		exit(-1);
+	}
+
+	printf("get_msg message:%s\n", message);
+}
+
+void ioctl_get_nth_byte(int file_desc)
+{
+	int i;
+	char c;
+
+	printf("get_nth_byte message:");
+
+	i = 0;
+	while (c != 0) {
+		c = ioctl(file_desc, IOCTL_GET_NTH_BYTE, i++);
+
+		if (c &#60; 0) {
+			printf
+			    ("ioctl_get_nth_byte failed at the %d'th byte:\n",
+			     i);
+			exit(-1);
+		}
+
+		putchar(c);
+	}
+	putchar('\n');
+}
+
+/* 
+ * Main - Call the ioctl functions 
+ */
+void main()
+{
+	int file_desc, ret_val;
+	char *msg = "Message passed by ioctl\n";
+
+	file_desc = open(DEVICE_FILE_NAME, 0);
+	if (file_desc &#60; 0) {
+		printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
+		exit(-1);
+	}
+
+	ioctl_get_nth_byte(file_desc);
+	ioctl_get_msg(file_desc);
+	ioctl_set_msg(file_desc, msg);
+
+	close(file_desc);
+}</PRE
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN938"
+HREF="c914.htm#AEN938"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>注意这儿“读”与“写”的角色再次翻转过来，在ioctl's中读是向内核发送信息，
+	而写是从内核获取信息。</P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN941"
+HREF="c914.htm#AEN941"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这样的表述并不准确。
+	例如你不能在ioctl中传递一个结构体，但你可以通过传递指向这个结构体的指针实现。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c903.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c998.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Using /proc For Input</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>System Calls</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

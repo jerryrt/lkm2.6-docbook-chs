@@ -1,0 +1,663 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Preliminaries</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="为已编译的内核编译模块"
+HREF="x417.htm"><LINK
+REL="NEXT"
+TITLE="Character Device Files"
+HREF="c603.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x417.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c603.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN468"
+></A
+>Chapter 3. Preliminaries</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN470"
+>内核模块和用户程序的比较</A
+></H1
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN472"
+>内核模块是如何开始和结束的</A
+></H2
+><P
+>用户程序通常从函数<CODE
+CLASS="FUNCTION"
+>main()</CODE
+>开始，执行一系列的指令并且
+		当指令执行完成后结束程序。内核模块有一点不同。内核模块要么从函数<CODE
+CLASS="FUNCTION"
+>init_module</CODE
+>
+		或是你用宏<CODE
+CLASS="FUNCTION"
+>module_init</CODE
+>指定的函数调用开始。这就是内核模块
+		的入口函数。它告诉内核模块提供那些功能扩展并且让内核准备好在需要时调用它。
+		当它完成这些后，该函数就执行结束了。模块在被内核调用前也什么都不做。</P
+><P
+>所有的模块或是调用<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>或是你用宏
+		<CODE
+CLASS="FUNCTION"
+>module_exit</CODE
+>指定的函数。这是模块的退出函数。它撤消入口函数所做的一切。
+		例如注销入口函数所注册的功能。</P
+><P
+>所有的模块都必须有入口函数和退出函数。既然我们有不只一种方法去定义这两个
+		函数，我将努力使用“入口函数”和“退出函数”来描述 它们。但是当我只用<CODE
+CLASS="FUNCTION"
+>init_module</CODE
+>
+		和<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>时，我希望你明白我指的是什么。</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN484"
+>模块可调用的函数</A
+></H2
+><A
+NAME="AEN486"
+></A
+><A
+NAME="AEN488"
+></A
+><A
+NAME="AEN490"
+></A
+><P
+>程序员并不总是自己写所有用到的函数。一个常见的基本的例子就是
+		<CODE
+CLASS="FUNCTION"
+>printf()</CODE
+>你使用这些C标准库，libc提供的库函数。
+		这些函数(像<CODE
+CLASS="FUNCTION"
+>printf()</CODE
+>) 实际上在连接之前并不进入你的程序。
+		在连接时这些函数调用才会指向 你调用的库，从而使你的代码最终可以执行。
+		</P
+><P
+>内核模块有所不同。在hello world模块中你也许已经注意到了我们使用的函数
+		<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+> 却没有包含标准I/O库。这是因为模块是在insmod加
+		载时才连接的目标文件。那些要用到的函数的符号链接是内核自己提供的。 也就是说，
+		你可以在内核模块中使用的函数只能来自内核本身。如果你对内核提供了哪些函数符号
+		链接感兴趣，看一看文件<TT
+CLASS="FILENAME"
+>/proc/kallsyms</TT
+>。</P
+><P
+>需要注意的一点是库函数和系统调用的区别。库函数是高层的，完全运行在用户空间，
+		为程序员提供调用真正的在幕后 完成实际事务的系统调用的更方便的接口。系统调用在内核
+		态运行并且由内核自己提供。标准C库函数<CODE
+CLASS="FUNCTION"
+>printf()</CODE
+>可以被看做是一
+		个通用的输出语句，但它实际做的是将数据转化为符合格式的字符串并且调用系统调用
+		<CODE
+CLASS="FUNCTION"
+>write()</CODE
+>输出这些字符串。</P
+><P
+> 是否想看一看<CODE
+CLASS="FUNCTION"
+>printf()</CODE
+>究竟使用了哪些系统调用? 
+		这很容易，编译下面的代码。</P
+><PRE
+CLASS="SCREEN"
+>#include &lt;stdio.h&gt;
+int main(void)
+{ printf("hello"); return 0; }
+		</PRE
+><A
+NAME="AEN505"
+></A
+><P
+>使用命令<B
+CLASS="COMMAND"
+>gcc -Wall -o hello hello.c</B
+>编译。用命令
+		<B
+CLASS="COMMAND"
+>strace hello</B
+>行该可执行文件。是否很惊讶？ 每一行都和一个系统调用相对应。
+		strace<A
+NAME="AEN510"
+HREF="#FTN.AEN510"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>
+		是一个非常有用的程序，它可以告诉你程序使用了哪些系统调用和这些系统调用的参数，返回值。 
+		这是一个极有价值的查看程序在干什么的工具。在输出的末尾，你应该看到这样类似的一行
+		<CODE
+CLASS="FUNCTION"
+>write(1, "hello", 5hello)</CODE
+>。这就是我们要找的。藏在面具<CODE
+CLASS="FUNCTION"
+>printf()</CODE
+>
+		的真实面目。既然绝大多数人使用库函数来对文件I/O进行操作(像 fopen, fputs, fclose)。
+		你可以查看man说明的第二部分使用命令<B
+CLASS="COMMAND"
+>man 2 write</B
+>.  。man说明的第二部分
+		专门介绍系统调用(像<CODE
+CLASS="FUNCTION"
+>kill()</CODE
+>和<CODE
+CLASS="FUNCTION"
+>read()</CODE
+>)。
+		man说明的第三部分则专门介绍你可能更熟悉的库函数，
+		(像<CODE
+CLASS="FUNCTION"
+>cosh()</CODE
+>和<CODE
+CLASS="FUNCTION"
+>random()</CODE
+>)。</P
+><P
+>你甚至可以编写代码去覆盖系统调用，正如我们不久要做的。骇客常这样做来为系统安装后门或木马。
+		但你可以用它来完成一些更有益的事，像让内核在每次某人删除文件时输出
+		“ <SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>Tee hee, that tickles!</I
+></SPAN
+>” 的信息。</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN521"
+>用户空间和内核空间</A
+></H2
+><P
+>内核全权负责对硬件资源的访问，不管被访问的是显示卡，硬盘，还是内存。
+		用户程序常为这些资源竞争。就如同我在保存这 份文档同时本地数据库正在更新。
+		我的编辑器vim进程和数据库更新进程同时要求访问硬盘。内核必须使这些请求有条不紊的进行，
+		而不是随用户的意愿提供计算机资源。 为方便实现这种机制， <ACRONYM
+CLASS="ACRONYM"
+>CPU</ACRONYM
+>
+		可以在不同的状态运行。不同的状态赋予不同的你对系统操作的自由。Intel 80836 架构有四种状态。
+		Unix只使用了其中 的两种，最高级的状态(操作状态0,即“超级状态”，可以执行任何操作)和最低级的状态
+		(即“用户状态”)。</P
+><P
+>回忆以下我们对库函数和系统调用的讨论，一般库函数在用户态执行。
+		库函数调用一个或几个系统调用，而这些系统调用为库函数完成工作，但是在超级状态。
+		一旦系统调用完成工作后系统调用就返回同时程序也返回用户态。
+		</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN526"
+>命名空间</A
+></H2
+><A
+NAME="AEN528"
+></A
+><A
+NAME="AEN530"
+></A
+><A
+NAME="AEN532"
+></A
+><P
+>如果你只是写一些短小的C程序，你可为你的变量起一个方便的和易于理解的变量名。
+		但是，如果你写的代码只是 许多其它人写的代码的一部分，你的全局一些就会与其中的全局变量发生冲突。
+		另一个情况是一个程序中有太多的 难以理解的变量名，这又会导致<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>变量命名空间污染</I
+></SPAN
+>
+		在大型项目中，必须努力记住保留的变量名，或为独一无二的命名使用一种统一的方法。
+		</P
+><P
+>当编写内核代码时，即使是最小的模块也会同整个内核连接，所以这的确是个令人头痛的问题。
+		最好的解决方法是声明你的变量为<SPAN
+CLASS="TYPE"
+>static</SPAN
+>静态的并且为你的符号使用一个定义的很好的前缀。
+		传统中，使用小写字母的内核前缀。如果你不想将所有的东西都声明为<SPAN
+CLASS="TYPE"
+>static</SPAN
+>静态的，
+		另一个选择是声明一个<CODE
+CLASS="VARNAME"
+>symbol table</CODE
+>（符号表）并向内核注册。我们将在以后讨论。
+		</P
+><P
+>文件<TT
+CLASS="FILENAME"
+>/proc/kallsyms</TT
+>保存着内核知道的所有的符号，你可以访问它们，
+		因为它们是内核代码空间的一部分。
+		</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN543"
+>代码空间</A
+></H2
+><A
+NAME="AEN545"
+></A
+><A
+NAME="AEN547"
+></A
+><A
+NAME="AEN549"
+></A
+><A
+NAME="AEN551"
+></A
+><A
+NAME="AEN553"
+></A
+><P
+>内存管理是一个非常复杂的课题。O'Reilly的《Understanding The Linux Kernel》绝大部分都在
+		讨论内存管理！我们 并不准备专注于内存管理，但有一些东西还是得知道的。</P
+><P
+>如果你没有认真考虑过内存设计缺陷意味着什么，你也许会惊讶的获知一个指针并不指向一个确切
+		的内存区域。当一个进程建立时，内核为它分配一部分确切的实际内存空间并把它交给进程，被进程的
+		代码，变量，堆栈和其它一些计算机学的专家才明白的东西使用<A
+NAME="AEN557"
+HREF="#FTN.AEN557"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+>。这些内存从$0$ 开始并可以扩展到需要的地方。这些
+		内存空间并不重叠，所以即使进程访问同一个内存地址，例如<TT
+CLASS="LITERAL"
+>0xbffff978</TT
+>，
+		真实的物理内存地址其实是不同的。进程实际指向的是一块被分配的内存中以<TT
+CLASS="LITERAL"
+>0xbffff978</TT
+>
+		为偏移量的一块内存区域。绝大多数情况下，一个进程像普通的"Hello, World"不可以访问别的进程的
+		内存空间，尽管有实现这种机制的方法。 我们将在以后讨论。</P
+><P
+>内核自己也有内存空间。既然一个内核模块可以动态的从内核中加载和卸载，它其实是共享内核的
+		内存空间而不是自己拥有 独立的内存空间。因此，一旦你的模块具有内存设计缺陷，内核就是内存设计缺陷了。
+		如果你在错误的覆盖数据，那么你就在 破坏内核的代码。这比现在听起来的还糟。所以尽量小心谨慎。</P
+><P
+>顺便提一下，以上我所指出的对于任何单整体内核的操作系统都是真实的<A
+NAME="AEN563"
+HREF="#FTN.AEN563"
+><SPAN
+CLASS="footnote"
+>[3]</SPAN
+></A
+>。
+		也存在模块化微内核的操作系统，如 GNU Hurd 和 QNX Neutrino。</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN565"
+>设备驱动</A
+></H2
+><P
+>一种内核模块是设备驱动程序，为使用硬件设备像电视卡和串口而编写。
+		在Unix中，任何设备都被当作路径<TT
+CLASS="FILENAME"
+>/dev</TT
+>
+		的设备文件处理，并通过这些设备文件提供访问硬件的方法。 设备驱动为用户程序
+		访问硬件设备。举例来说，声卡设备驱动程序<TT
+CLASS="FILENAME"
+>es1370.o</TT
+>将会把设备文件
+		<TT
+CLASS="FILENAME"
+>/dev/sound</TT
+>同声卡硬件Ensoniq IS1370联系起来。
+		这样用户程序像 mp3blaster 就可以通过访问设备文件<TT
+CLASS="FILENAME"
+>/dev/sound</TT
+>
+		运行而不必知道那种声卡硬件安装在系统上。</P
+><DIV
+CLASS="SECT3"
+><H3
+CLASS="SECT3"
+><A
+NAME="AEN572"
+>Major and Minor Numbers</A
+></H3
+><A
+NAME="AEN574"
+></A
+><A
+NAME="AEN576"
+></A
+><P
+>让我们来研究几个设备文件。这里的几个设备文件代表着一块主IDE硬盘上的头三个分区：</P
+><PRE
+CLASS="SCREEN"
+># ls -l /dev/hda[1-3]
+brw-rw----  1 root  disk  3, 1 Jul  5  2000 /dev/hda1
+brw-rw----  1 root  disk  3, 2 Jul  5  2000 /dev/hda2
+brw-rw----  1 root  disk  3, 3 Jul  5  2000 /dev/hda3
+		</PRE
+><P
+>注意一下被逗号隔开的两列。第一个数字被叫做主设备号，第二个被叫做从设备号。
+		主设备号决定使用何种设备驱动程序。 每种不同的设备都被分配了不同的主设备号；
+		所有具有相同主设备号的设备文件都是被同一个驱动程序控制。上面例子中的 主设备号都为3，
+		表示它们都被同一个驱动程序控制。</P
+><P
+>从设备号用来区别驱动程序控制的多个设备。上面例子中的从设备号不相同是因为它们被识别为几个设备。</P
+><P
+> 设备被大概的分为两类：字符设备和块设备。区别是块设备有缓冲区，所以它们可以对请求进行优化排序。
+		这对存储设备尤其 重要，因为读写相邻的文件总比读写相隔很远的文件要快。另一个区别是块设备输入和输出
+		都是以数据块为单位的，但是字符设备 就可以自由读写任意量的字节。大部分硬件设备为字符设备，因为它们
+		不需要缓冲区和数据不是按块来传输的。你可以通过命令<B
+CLASS="COMMAND"
+>ls -l</B
+>输出的头一个字母识别一个
+		设备为何种设备。如果是'b' 就是块设备，如果是'c'就是字符设备。以上你看到的是块设备。这儿还有一些
+		字符设备文件（串口）：</P
+><PRE
+CLASS="SCREEN"
+>crw-rw----  1 root  dial 4, 64 Feb 18 23:34 /dev/ttyS0
+crw-r-----  1 root  dial 4, 65 Nov 17 10:26 /dev/ttyS1
+crw-rw----  1 root  dial 4, 66 Jul  5  2000 /dev/ttyS2
+crw-rw----  1 root  dial 4, 67 Jul  5  2000 /dev/ttyS3
+		</PRE
+><P
+>  如果你想看一下已分配的主设备号都是些什么设备可以看一下文件
+		<TT
+CLASS="FILENAME"
+>/usr/src/linux/Documentation/devices.txt</TT
+>。</P
+><A
+NAME="AEN587"
+></A
+><A
+NAME="AEN589"
+></A
+><P
+>系统安装时，所有的这些设备文件都是由命令<B
+CLASS="COMMAND"
+>mknod</B
+>建立的。去建立一个新的名叫
+		coffee'，主设备号为<TT
+CLASS="LITERAL"
+>12</TT
+>和从设备号为<TT
+CLASS="LITERAL"
+>2</TT
+>的设备文件，只要简单的
+		执行命令<B
+CLASS="COMMAND"
+>mknod /dev/coffee c 12 2</B
+>。你并不是<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>必须</I
+></SPAN
+>将设备文件放在目录
+		<TT
+CLASS="FILENAME"
+>/dev</TT
+>中，这只是一个传统。Linus本人是这样做的，所以你最好也不例外。
+		但是，当你测试一个模块时，在工作目录建立一个设备文件也不错。 只要保证完成后将它放在驱动程序找得到的地方。&#13;</P
+><P
+>我还想声明在以上讨论中隐含的几点。当系统访问一个系统文件时， 系统内核只使用主设备号来区别设备类型和决定使用何种内核模块。系统 内核并不需要知道从设备号。内核模块驱动本身才关注从设备号，并用之来 区别其操纵的不同设备。
+		</P
+><P
+>另外，我这儿提到的硬件是比那种可以握在手里的PCI卡稍微抽象一点的东西。看一下下面的两个设备文件：
+		</P
+><PRE
+CLASS="SCREEN"
+>% ls -l /dev/fd0 /dev/fd0u1680
+brwxrwxrwx   1 root  floppy   2,  0 Jul  5  2000 /dev/fd0
+brw-rw----   1 root  floppy   2, 44 Jul  5  2000 /dev/fd0u1680
+		</PRE
+><P
+>你现在立即明白这是快设备的设备文件并且它们是有相同的驱动内核模块来操纵
+		（主设备号都为<TT
+CLASS="LITERAL"
+>2</TT
+>)）。你也许也意识到它们都是你的软盘驱动器，
+		即使你实际上只有一个软盘驱动器。为什么是两个设备文件？因为它们其中的一个代表着
+		你的1.44 MB容量的软驱，另一个代表着你的1.68 MB容量的，被某些人称为“超级格式化”的软驱。
+		这就是一个不同的从设备号代表着相同硬件设备的例子。请清楚的意识到我们提到的硬件有时
+		可能是非常抽象的。</P
+></DIV
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN510"
+HREF="c468.htm#AEN510"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这是一个去跟踪程序究竟在做什么的非常有价值的工具。</P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN557"
+HREF="c468.htm#AEN557"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>我是物理专业的，
+		而不是主修计算机。</P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN563"
+HREF="c468.htm#AEN563"
+><SPAN
+CLASS="footnote"
+>[3]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>		这不同于将所有的内核模块编译进内核，但意思确实是一样的。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x417.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c603.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>为已编译的内核编译模块</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Character Device Files</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

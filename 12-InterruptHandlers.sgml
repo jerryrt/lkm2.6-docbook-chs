@@ -1,0 +1,95 @@
+<sect1><title>Interrupt Handlers</title>
+
+	<indexterm><primary>interrupt handlers</primary></indexterm>
+	<indexterm><primary>handlers</primary><secondary>interrupt</secondary></indexterm>
+
+
+
+	<sect2><title>中断处理程序</title>
+		<para>除了刚结束的那章，我们目前在内核中所做的每件事都只不过是对某个请求的进程的响应，
+		要么是对某个特殊的文件的处理，要么是发送一个<function>ioctl()</function>，要么是调用一个系统调用。 但是内核的工作不仅仅是响应某个进程的请求。还有另外一项非常重要的工作就是和连接到机器上的硬件进行对话。</para>
+
+		<para>CPU和硬件之间的交互大致可分为两种。第一种是CPU发送命令给硬件，第二种就是硬件要返回某些信息给CPU。 后面的那种，又叫做中断，较难实现，因为它要在硬件适宜时与其打交道，而不是CPU。硬件设备通常只有很小的RAM， 如果你不及时的读取里面的信息，这些信息就会丢失。</para>
+		<para>在Linux中，硬件中断被叫作IRQ（<emphasis>I</emphasis>nterrupt
+		<emphasis>R</emphasis>e<emphasis>q</emphasis>uests，中断请求）<footnote><para>这是Linux起源的Intel架构中的标准的起名方法。
+		<para></footnote>。有两种硬件中断，短中断和长中断。短中断占用的时间非常短，在这段时间内，
+		整个系统被阻塞，任何其它中断都不会处理。长中断占用的时间相对较长，在此期间，可能会有别的中断发生请求处理
+		（不是相同设备发出的中断）。可能的话，尽量将中断声明为长中断。</para>
+		<indexterm><primary>bottom half</primary></indexterm>
+		<para>当CPU接收到一个中断时，它停止正在处理的一切事务（除非它在处理另一个更重要的中断，
+		在这种情况下它只会处理完这个重要的中断才会回来处理新产生的中断），
+		将运行中的那些参数压入栈中然后调用中断处理程序。这同时意味着中断处理程序本身也有一些限制，
+		因为此时系统的状态并不确定。解决的办法是让中断处理程序尽快的完成它的事务，通常是从硬件读取信息和向硬件发送指令，
+		然后安排下一次接收信息的相关处理（这被称为<quote>bottom half</quote>
+		<footnote><para>这里是译者给出的关于“bottom half”的一点解释，来源是google上搜索到的英文资料：</para>
+		<para>“底部”，“bottom half”常在涉及中断的设备驱动中提到。<para>
+		<para>当内核接收到一个中断请求，对应的设备驱动被调用。因为在这段时间内无法处理别的任何事务，
+		让中断处理尽快的完成并重新让内核返回正常的工作状态是非常重要的。就是因为这个设计思想，
+		驱动的“顶部”和“底部”的概念被提出：“顶部”是被内核调用时最先被执行的部分，
+		快速的完成一些尽量少的却是必需的工作（像对硬件或其它资源的独享访问这种必须立刻执行的操作），
+		然后做一些设置让“底部”去完成那些要求时间相对比较宽裕的，剩下的工作。</para>
+		<para> “底部”什么时候如何运作是内核的设计问题。你也许会听到“底部”的设计已经在最近的内核中被废除了。
+		这种说法不是很确切，在新内核中其实你可以去选择怎样去执行：像软中断或任务，就像它们以前那样，
+		还是加入任务队列，更像启动一个用户进程。</para>
+		</footnote>
+		)，然后返回。内核确保被安排的事务被尽快的执行。当被执行时，在内核模块中允许的操作就是被允许的。</para>
+
+		<indexterm><primary>request_irq()</primary></indexterm>
+		<indexterm><primary>/proc/interrupts</primary></indexterm>
+		<indexterm><primary>SA_INTERRUPT</primary></indexterm>
+		<indexterm><primary>SA_SHIRQ</primary></indexterm>
+
+		<para>实现的方法是调用<function>request_irq()</function>函数，当接受到相应的IRQ时
+		（共有15种中断，在Intel架构平台上再加上1种用于串连中断控制器的中断）去调用你的中断
+		处理程序。该函数接收IRQ号，要调用的处理IRQ函数的名称，中断请求的类别标志位，文件
+		<filename>/proc/interrupts</filename>中声明的设备的名字，和传递给中断处理程序的参数。中断请求的类别标志位可以为
+		<parameter>SA_SHIRQ</parameter>来告诉系统你希望与其它中断处理程序共享该中断号
+		（这通常是由于一些设备共用相同的IRQ号），也可以为<parameter>SA_INTERRUPT</parameter>
+		来告诉系统这是一个快速中断，这种情况下该函数只有在该IRQ空闲时才会成功返回，或者同时你又决定共享该IQR。</para>
+		<indexterm><primary>queue_task_irq</primary></indexterm>
+		<indexterm><primary>tq_immediate</primary></indexterm>
+		<indexterm><primary>mark_bh</primary></indexterm>
+		<indexterm><primary>BH_IMMEDIATE</primary></indexterm>
+
+		<para>然后，在中断处理程序内部，我们与硬件对话，接着使用带<function>tq_immediate()</function>和
+		<function>mark_bh(BH_IMMEDIATE)</function>的
+		<function>queue_task_irq()</function>去对bottom half队列进行调度。task</function>
+		</para>
+		</sect2>
+
+
+
+		<sect2 id="keyboard"><title>Intel架构中的键盘</title>
+
+		<indexterm><primary>keyboard</primary></indexterm>
+		<indexterm><primary>Intel architecture</primary><secondary>keyboard</secondary></indexterm>
+		<!-- <warning> -->
+		<para>剩余的这部分是只适用Intel架构的。如果你不使用Intel架构的平台，它们将不会工作，不要去尝试编译以下的代码。</para>
+		<!-- </warning> -->
+		<para>在写这章的事例代码时，我遇到了一些困难。一方面，我需要一个可以得到实际有意义结果的，
+		能在各种平台上工作的例子。另一方面，内核中已经包括了各种设备驱动，并且这些驱动将无法和我的例子共存。
+		我找到的解决办法是为键盘中断写点东西，当然首先禁用普通的键盘中断。因为该中断在内核中定义为一个静态连接的符号
+		（见<filename>drivers/char/keyboard.c</filename>)），我们没有办法恢复。所以在
+		<userinput>insmod</userinput>前，如果你爱惜你的机器，新打开一个终端运行<userinput>sleep 120
+		; reboot</userinput>。</para>
+		<indexterm><primary>inb</primary></indexterm>
+
+		<para>该代码将自己绑定在IRQ 1， 也就是Intel架构中键盘的IRQ。然后，当接收到一个键盘中断请求时，它读取键盘的状态（那就是
+		<userinput>inb(0x64)</userinput>的目的）和扫描码，也就是键盘返回的键值。然后，一旦内核认为这是符合条件的，它运行
+		<function>got_char</function>去给出操作的键（扫描码的头7个位）和是按下键（扫描码的第8位为0）
+		还是弹起键（扫描码的第8位为1）。</para>
+		<indexterm><primary>source file</primary><secondary><filename>intrpt.c</filename></secondary></indexterm>
+
+
+<example><title>intrpt.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/12-InterruptHandlers/intrpt.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+		</sect2>
+
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

@@ -1,0 +1,37 @@
+<sect1><title>注意</title>
+
+	<indexterm><primary>refund policy</primary></indexterm>
+
+	<para>在我让你们进入内核模块的世界之前，我需要提醒你们下面的一些注意。如果我没警告到你们但是的确发生了，
+	那么你将问题报告我，我将全额退还你的书款。</para>
+
+	<indexterm><primary>standard libraries</primary></indexterm>
+	<indexterm><primary>libraries</primary><secondary>standard</secondary></indexterm>
+	<indexterm><primary>/proc/kallsyms</primary></indexterm>
+	<indexterm><primary>proc file</primary><secondary>kallsyms</secondary></indexterm>
+	<indexterm><primary>interrupts</primary><secondary>disabling</secondary></indexterm>
+	<indexterm><primary>carnivore</primary><secondary>large</secondary></indexterm>
+
+	<variablelist>
+
+ 		<varlistentry><term>使用标准库文件:</term>
+			<listitem><para>你无法这样做。在内核模块中，你只能使用内核提供的函数，也就是你在
+			<filename>/proc/kallsyms</filename>能查到的那些。</para></listitem></varlistentry>
+
+		<varlistentry><term>禁用中断:</term>
+			<listitem><para>你如果这样做了但只是一瞬间，没问题，当我没提这事。但是事后你没有恢复它们，
+			你就只能摁电源键来重启你僵死的系统了。</para></listitem> </varlistentry>
+	
+		<varlistentry><term>尝试一些非常危险的东西:</term>
+			<listitem><para>这也许不应该由我来说，但是以防万一，我还是提出来吧！</para></listitem>
+			</varlistentry>
+
+	</variablelist>
+			
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

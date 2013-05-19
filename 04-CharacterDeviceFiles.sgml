@@ -1,0 +1,247 @@
+<sect1><title>字符设备文件</title>
+
+	<indexterm><primary>device file</primary><secondary>character</secondary></indexterm>
+
+
+
+		<sect2><title>关于<type>file_operations</type>结构体</title>
+
+			<indexterm><primary>file_operations</primary></indexterm>
+
+			<para>结构体<type>file_operations</type>在头文件
+			<filename role="headerfile">linux/fs.h</filename>中定义，用来存储驱动内核模块提供的对
+			设备进行各种操作的函数的指针。该结构体的每个域都对应着驱动内核模块用来处理某个被请求的
+			操作的函数的地址。</para>
+
+			<para> 举个例子，每个字符设备需要定义一个用来读取设备数据的函数。结构体
+			<type>file_operations</type>中存储着内核模块中执行这项操作的函数的地址。一下是该结构体
+			在内核<literal>2.6.5</literal>中看起来的样子：</para>
+
+			<screen>
+struct file_operations {
+	struct module *owner;
+	 loff_t(*llseek) (struct file *, loff_t, int);
+	 ssize_t(*read) (struct file *, char __user *, size_t, loff_t *);
+	 ssize_t(*aio_read) (struct kiocb *, char __user *, size_t, loff_t);
+	 ssize_t(*write) (struct file *, const char __user *, size_t, loff_t *);
+	 ssize_t(*aio_write) (struct kiocb *, const char __user *, size_t,
+			      loff_t);
+	int (*readdir) (struct file *, void *, filldir_t);
+	unsigned int (*poll) (struct file *, struct poll_table_struct *);
+	int (*ioctl) (struct inode *, struct file *, unsigned int,
+		      unsigned long);
+	int (*mmap) (struct file *, struct vm_area_struct *);
+	int (*open) (struct inode *, struct file *);
+	int (*flush) (struct file *);
+	int (*release) (struct inode *, struct file *);
+	int (*fsync) (struct file *, struct dentry *, int datasync);
+	int (*aio_fsync) (struct kiocb *, int datasync);
+	int (*fasync) (int, struct file *, int);
+	int (*lock) (struct file *, int, struct file_lock *);
+	 ssize_t(*readv) (struct file *, const struct iovec *, unsigned long,
+			  loff_t *);
+	 ssize_t(*writev) (struct file *, const struct iovec *, unsigned long,
+			   loff_t *);
+	 ssize_t(*sendfile) (struct file *, loff_t *, size_t, read_actor_t,
+			     void __user *);
+	 ssize_t(*sendpage) (struct file *, struct page *, int, size_t,
+			     loff_t *, int);
+	unsigned long (*get_unmapped_area) (struct file *, unsigned long,
+					    unsigned long, unsigned long,
+					    unsigned long);
+};
+			</screen>
+
+			<para>驱动内核模块是不需要实现每个函数的。像视频卡的驱动就不需要从目录的结构
+			中读取数据。那么，相对应的<type>file_operations</type>重的项就为
+			<varname>NULL</varname>。</para>
+
+			<para>gcc还有一个方便使用这种结构体的扩展。你会在较现代的驱动内核模块中见到。
+			新的使用这种结构体的方式如下：</para>
+
+			<screen>
+struct file_operations fops = {
+	read: device_read,
+	write: device_write,
+	open: device_open,
+	release: device_release
+};
+			</screen>
+
+			<para>同样也有C99语法的使用该结构体的方法，并且它比GNU扩展更受推荐。我使用的版本为
+			<literal>2.95</literal>为了方便那些想移植你的代码的人，你最好使用这种语法。它将提高代码的兼容性：
+			</para>
+
+			<screen>
+struct file_operations fops = {
+	.read = device_read,
+	.write = device_write,
+	.open = device_open,
+	.release = device_release
+};
+			</screen>
+
+			<para>这种语法很清晰，你也必须清楚的意识到没有显示声明的结构体成员都被gcc初始化为<varname>NULL</varname>。</para>
+
+			<para>指向结构体<type>struct file_operations</type>的指针通常命名为<varname>fops</varname>。</para>
+
+		</sect2>
+
+
+
+		<sect2><title>关于<type>file</type>结构体</title>
+
+			<indexterm><primary>file</primary></indexterm>
+			<indexterm><primary>inode</primary></indexterm>
+
+			<para>每一个设备文件都代表着内核中的一个<type>file</type>结构体。该结构体在头文件<filename
+			role="header">linux/fs.h</filename>定义。注意，<type>file</type>结构体是内核空间的结构体，
+			这意味着它不会在用户程序的代码中出现。它绝对不是在glibc中定义的<type>FILE</type>。
+			<type>FILE</type>自己也从不在内核空间的函数中出现。它的名字确实挺让人迷惑的。
+			它代表着一个抽象的打开的文件，但不是那种在磁盘上用结构体
+			<type>inode</type>表示的文件。</para>
+
+			<para>指向结构体<varname>struct file</varname>的指针通常命名为<function>filp</function>。
+			你同样可以看到<varname>struct file file</varname>的表达方式，但不要被它诱惑。</para>
+
+			<para>去看看结构体<function>file</function>的定义。大部分的函数入口，像结构体
+			<function>struct dentry</function>没有被设备驱动模块使用，你大可忽略它们。这是因为设备驱动模块并不自己直接填充结构体
+			<varname>file</varname>：它们只是使用在别处建立的结构体<varname>file</varname>中的数据。
+			</para>
+
+		</sect2>
+
+
+
+		<sect2><title>注册一个设备</title>
+
+			<indexterm><primary>register_chrdev</primary></indexterm>
+			<indexterm><primary>major number</primary><secondary>dynamic allocation</secondary></indexterm>
+
+			<para>如同先前讨论的，字符设备通常通过在路径<filename
+			role="direcotry">/dev</filename><footnote><para>这只是习惯上的。将设备文件放
+			在你的用户目录下是没有问题的。但是当真正提供成熟的驱动模块时，请保证将设备文
+			件放在<filename role="directory">/dev</filename>下。</para></footnote>设备文
+			件访问。主设备号告诉你哪些驱动模块是用来操纵哪些硬件设备的。从设备号是驱动模
+			块自己使用来区别它操纵的不同设备，当此驱动模块操纵不只一个设备时。
+			</para>
+
+			<para>将内核驱动模块加载入内核意味着要向内核注册自己。这个工作是和驱动模块获
+			得主设备号时初始化一同进行的。你可以使用头文件
+			<filename role="headerfile">linux/fs.h</filename>中的函数register_chrdev来实
+			现。</para>
+
+			<screen>
+int register_chrdev(unsigned int major, const char *name, struct file_operations *fops);
+			</screen>
+
+			<para>其中<varname>unsigned int major</varname>是你申请的主设备号，
+			<varname>const char *name</varname>是将要在文件<filename>/proc/devices</filename>
+			<varname>struct file_operations *fops</varname>是指向你的驱动模块的
+			<varname>file_operations</varname>表的指针。负的返回值意味着注册失败。
+			注意注册并不需要提供从设备号。内核本身并不在意从设备号。 </para>
+
+			<para>现在的问题是你如何申请到一个没有被使用的主设备号？最简单的方法是查看文件
+			<filename>Documentation/devices.txt</filename>从中挑选一个没有被使用的。这不是
+			一劳永逸的方法因为你无法得知该主设备号在将来会被占用。最终的方法是让内核为你动
+			态分配一个。</para>
+
+			<para>如果你向函数<function>register_chrdev</function>传递为0的主设备号，那么
+			返回的就是动态分配的主设备号。副作用就是既然你无法得知主设备号，你就无法预先建
+			立一个设备文件。 有多种解决方法。第一种方法是新注册的驱动模块会输出自己新分配
+			到的主设备号，所以我们可以手工建立需要的设备文件。第二种是利用文件
+			<filename>/proc/devices</filename>新注册的驱动模块的入口，要么手工建立设备文件，
+			要么编一个脚本去自动读取该文件并且生成设备文件。第三种是在我们的模块中，当注册
+			成功时，使用<function>mknod</function>统调用建立设备文件并且调用 rm 删除该设备
+			文件在驱动模块调用函数<function>cleanup_module</function>前。</para>
+
+		</sect2>
+
+
+
+		<sect2><title>注销一个设备</title>
+
+			<indexterm><primary>rmmod</primary><secondary>preventing</secondary></indexterm>
+
+			<para>即使时root也不能允许随意卸载内核模块。当一个进程已经打开一个设备文件时我
+			们卸载了该设备文件使用的内核模块，我们此时再对该文件的访问将会导致对已卸载的内
+			核模块代码内存区的访问。幸运的话我们最多获得一个讨厌的错误警告。如果此时已经在
+			该内存区加载了另一个模块，倒霉的你将会在内核中跳转执行意料外的代码。结果是无法
+			预料的，而且多半是不那么令人愉快的。</para>
+
+			<para>平常，当你不允许某项操作时，你会得到该操作返回的错误值（一般为一负的值）。
+			但对于无返回值的函数<function>cleanup_module</function>这是不可能的。然而，却有
+			一个计数器跟踪着有多少进程正在使用该模块。你可以通过查看文件
+			<filename>/proc/modules</filename>的第三列来获取这些信息。如果该值非零，则卸载
+			就会失败。你不需要在你模块中的函数<function>cleanup_module</function>中检查该
+			计数器，因为该项检查由头文件<filename>linux/module.c</filename>中定义的系统调用
+			<function>sys_delete_module</function>完成。你也不应该直接对该计数器进行操作。
+			你应该使用在文件<filename role="headerfile">linux/modules.h</filename>定义的宏
+			来增加，减小和读取该计数器：</para>
+
+			<itemizedlist>
+			<listitem><para><varname>try_module_get(THIS_MODULE)</varname>: Increment the use count.</para></listitem>
+			<listitem><para><varname>try_module_put(THIS_MODULE)</varname>: Decrement the use count.</para></listitem>
+			</itemizedlist>
+	
+			<para>保持该计数器时刻精确是非常重要的；如果你丢失了正确的计数，你将无法卸载模块，
+			那就只有重启了。不过这种情况在今后编写内核模块时也是无法避免的。</para>
+
+			<indexterm><primary>MOD_INC_USE_COUNT</primary></indexterm>
+			<indexterm><primary>MOD_DEC_USE_COUNT</primary></indexterm>
+			<indexterm><primary>MOD_IN_USE</primary></indexterm>
+
+		</sect2>
+
+
+
+		<sect2><title>chardev.c</title>
+
+			<para>下面的代码示范了一个叫做<filename>chardev</filename>的字符设备。你可以用
+			<filename>cat</filename>输出该设备文件的内容（或用别的程序打开它）时，驱动模块
+			会将该设备文件被读取的次数显示。目前对设备文件的写操作还不被支持（像<command>echo "hi" >
+			/dev/hello</command>），但会捕捉这些操作并且告诉用户该操作不被支持。不要担心我
+			们对读入缓冲区的数据做了什么；我们什么都没做。我们只是读入数据并输出我们已经接
+			收到的数据的信息。</para>
+
+<example><title>chardev.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/04-CharacterDeviceFiles/chardev.c" format="linespecific"/></inlinegraphic></programlisting></example>
+		</sect2>
+
+
+
+		<sect2><title>为多个版本的内核编写内核模块</title>
+
+			<indexterm><primary>kernel versions</primary></indexterm>
+			<indexterm><primary>LINUX_VERSION_CODE</primary></indexterm>
+			<indexterm><primary>KERNEL_VERSION</primary></indexterm>
+
+			<para>系统调用，也就是内核提供给进程的接口，基本上是保持不变的。也许会添入新的
+			系统调用，但那些已有的不会被改动。这对于向下兼容是非常重要的。在多数情况下，设
+			备文件是保持不变的。但内核的内部在不同版本之间还是会有区别的。</para>
+
+			<para>Linux内核分为稳定版本（版本号中间为偶数）和试验版本（版本号中间为奇数）。
+			试验版本中可以试验各种各样的新而酷的主意，有些会被证实是一个错误，有些在下一版
+			中会被完善。总之，你不能依赖这些版本中的接口（这也是我不在本文档中支持它们的原因，
+			它们更新的太快了)。在稳定版本中，我们可以期望接口保持一致，除了那些修改代码中错误的版本。
+			</para>
+
+			<para>如果你要支持多版本的内核，你需要编写为不同内核编译的代码树。可以通过比较宏
+			<varname>LINUX_VERSION_CODE</varname>和宏<varname>KERNEL_VERSION</varname>在版本号为<varname>a.b.c</varname>
+			的内核中，该宏的值应该为 2^16×a+2^8×b+c </para>
+			
+			<para>
+			在上一个版本中该文档还保留了详细的如何向后兼容老内核的介绍，现在我们决定打破这个传统。
+			对为老内核编写驱动感兴趣的读者应该参考对应版本的LKMPG，也就是说，2.4.x版本的LKMPG对应
+			2.4.x的内核，2.6.x版本的LKMPG对应2.6.x的内核。
+			</para>
+			<para>更新：我们上面所说的对于上至（包括）2.6.10的内核都是真的。你可能已经注意到了最新的内核看起来不同。 它们不像现在的2.6.x.y。前三项的含义基本上不变，也会加一个<varname>subpatchlevel</varname>，将表示安全补丁， 直到下一个<varname>subpatchlevel</varname>出来。所以人们能够选择稳定的代码树和安全升级或者使用最新的内核作为开发树。 如果你对整个故事感兴趣，搜索一下内核邮件列表档案。
+			</para>
+</sect2>
+
+</sect1>
+
+
+
+<!--
+vim:textwidth=128 shiftwidth=3
+-->

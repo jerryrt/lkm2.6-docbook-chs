@@ -1,0 +1,20 @@
+<sect1><title>从2.4到2.6的变化</title>
+  
+  <indexterm><primary>2.4 changes</primary></indexterm>
+	<indexterm><primary>kernel</primary><secondary>versions</secondary></indexterm>
+
+
+
+		<sect2><title>从2.4到2.6的变化</title>
+<para>我对内核的了解并不很完全所以我也无法写出所有的变化。对移植的一些提示能够通过对比这个版本的LKMPG 和2.4内核的对应版本来发现。除了那，任何需要把驱动从2.4移植到2.6内核的人都应该去访问<ulink url="http://lwn.net/Articles/driver-porting/"> 。如果你在那仍然找不到满足你需要的例子，去找一个和你的驱动相似的，并且在两种版本的内核中都有的驱动程序。 文件比较工具xxdiff 或meld到时会很有帮助。 也要检查一下你的驱动程序是否被linux/Documentation/中的文档介绍。在开始移植之前，以免你被刺到， 寻找一个合适的邮件列表并向那里的人们请求指点是一个不错的主意。
+	</para>
+
+			
+
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

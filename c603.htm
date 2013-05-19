@@ -1,0 +1,803 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Character Device Files</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="Preliminaries"
+HREF="c468.htm"><LINK
+REL="NEXT"
+TITLE="The /proc File System"
+HREF="c741.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c468.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c741.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN603"
+></A
+>Chapter 4. Character Device Files</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN605"
+>字符设备文件</A
+></H1
+><A
+NAME="AEN607"
+></A
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN610"
+>关于<SPAN
+CLASS="TYPE"
+>file_operations</SPAN
+>结构体</A
+></H2
+><A
+NAME="AEN613"
+></A
+><P
+>结构体<SPAN
+CLASS="TYPE"
+>file_operations</SPAN
+>在头文件
+			<TT
+CLASS="FILENAME"
+>linux/fs.h</TT
+>中定义，用来存储驱动内核模块提供的对
+			设备进行各种操作的函数的指针。该结构体的每个域都对应着驱动内核模块用来处理某个被请求的
+			操作的函数的地址。</P
+><P
+> 举个例子，每个字符设备需要定义一个用来读取设备数据的函数。结构体
+			<SPAN
+CLASS="TYPE"
+>file_operations</SPAN
+>中存储着内核模块中执行这项操作的函数的地址。一下是该结构体
+			在内核<TT
+CLASS="LITERAL"
+>2.6.5</TT
+>中看起来的样子：</P
+><PRE
+CLASS="SCREEN"
+>struct file_operations {
+	struct module *owner;
+	 loff_t(*llseek) (struct file *, loff_t, int);
+	 ssize_t(*read) (struct file *, char __user *, size_t, loff_t *);
+	 ssize_t(*aio_read) (struct kiocb *, char __user *, size_t, loff_t);
+	 ssize_t(*write) (struct file *, const char __user *, size_t, loff_t *);
+	 ssize_t(*aio_write) (struct kiocb *, const char __user *, size_t,
+			      loff_t);
+	int (*readdir) (struct file *, void *, filldir_t);
+	unsigned int (*poll) (struct file *, struct poll_table_struct *);
+	int (*ioctl) (struct inode *, struct file *, unsigned int,
+		      unsigned long);
+	int (*mmap) (struct file *, struct vm_area_struct *);
+	int (*open) (struct inode *, struct file *);
+	int (*flush) (struct file *);
+	int (*release) (struct inode *, struct file *);
+	int (*fsync) (struct file *, struct dentry *, int datasync);
+	int (*aio_fsync) (struct kiocb *, int datasync);
+	int (*fasync) (int, struct file *, int);
+	int (*lock) (struct file *, int, struct file_lock *);
+	 ssize_t(*readv) (struct file *, const struct iovec *, unsigned long,
+			  loff_t *);
+	 ssize_t(*writev) (struct file *, const struct iovec *, unsigned long,
+			   loff_t *);
+	 ssize_t(*sendfile) (struct file *, loff_t *, size_t, read_actor_t,
+			     void __user *);
+	 ssize_t(*sendpage) (struct file *, struct page *, int, size_t,
+			     loff_t *, int);
+	unsigned long (*get_unmapped_area) (struct file *, unsigned long,
+					    unsigned long, unsigned long,
+					    unsigned long);
+};
+			</PRE
+><P
+>驱动内核模块是不需要实现每个函数的。像视频卡的驱动就不需要从目录的结构
+			中读取数据。那么，相对应的<SPAN
+CLASS="TYPE"
+>file_operations</SPAN
+>重的项就为
+			<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>。</P
+><P
+>gcc还有一个方便使用这种结构体的扩展。你会在较现代的驱动内核模块中见到。
+			新的使用这种结构体的方式如下：</P
+><PRE
+CLASS="SCREEN"
+>struct file_operations fops = {
+	read: device_read,
+	write: device_write,
+	open: device_open,
+	release: device_release
+};
+			</PRE
+><P
+>同样也有C99语法的使用该结构体的方法，并且它比GNU扩展更受推荐。我使用的版本为
+			<TT
+CLASS="LITERAL"
+>2.95</TT
+>为了方便那些想移植你的代码的人，你最好使用这种语法。它将提高代码的兼容性：
+			</P
+><PRE
+CLASS="SCREEN"
+>struct file_operations fops = {
+	.read = device_read,
+	.write = device_write,
+	.open = device_open,
+	.release = device_release
+};
+			</PRE
+><P
+>这种语法很清晰，你也必须清楚的意识到没有显示声明的结构体成员都被gcc初始化为<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>。</P
+><P
+>指向结构体<SPAN
+CLASS="TYPE"
+>struct file_operations</SPAN
+>的指针通常命名为<CODE
+CLASS="VARNAME"
+>fops</CODE
+>。</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN635"
+>关于<SPAN
+CLASS="TYPE"
+>file</SPAN
+>结构体</A
+></H2
+><A
+NAME="AEN638"
+></A
+><A
+NAME="AEN640"
+></A
+><P
+>每一个设备文件都代表着内核中的一个<SPAN
+CLASS="TYPE"
+>file</SPAN
+>结构体。该结构体在头文件<TT
+CLASS="FILENAME"
+>linux/fs.h</TT
+>定义。注意，<SPAN
+CLASS="TYPE"
+>file</SPAN
+>结构体是内核空间的结构体，
+			这意味着它不会在用户程序的代码中出现。它绝对不是在glibc中定义的<SPAN
+CLASS="TYPE"
+>FILE</SPAN
+>。
+			<SPAN
+CLASS="TYPE"
+>FILE</SPAN
+>自己也从不在内核空间的函数中出现。它的名字确实挺让人迷惑的。
+			它代表着一个抽象的打开的文件，但不是那种在磁盘上用结构体
+			<SPAN
+CLASS="TYPE"
+>inode</SPAN
+>表示的文件。</P
+><P
+>指向结构体<CODE
+CLASS="VARNAME"
+>struct file</CODE
+>的指针通常命名为<CODE
+CLASS="FUNCTION"
+>filp</CODE
+>。
+			你同样可以看到<CODE
+CLASS="VARNAME"
+>struct file file</CODE
+>的表达方式，但不要被它诱惑。</P
+><P
+>去看看结构体<CODE
+CLASS="FUNCTION"
+>file</CODE
+>的定义。大部分的函数入口，像结构体
+			<CODE
+CLASS="FUNCTION"
+>struct dentry</CODE
+>没有被设备驱动模块使用，你大可忽略它们。这是因为设备驱动模块并不自己直接填充结构体
+			<CODE
+CLASS="VARNAME"
+>file</CODE
+>：它们只是使用在别处建立的结构体<CODE
+CLASS="VARNAME"
+>file</CODE
+>中的数据。
+			</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN658"
+>注册一个设备</A
+></H2
+><A
+NAME="AEN660"
+></A
+><A
+NAME="AEN662"
+></A
+><P
+>如同先前讨论的，字符设备通常通过在路径<TT
+CLASS="FILENAME"
+>/dev</TT
+><A
+NAME="AEN667"
+HREF="#FTN.AEN667"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>设备文
+			件访问。主设备号告诉你哪些驱动模块是用来操纵哪些硬件设备的。从设备号是驱动模
+			块自己使用来区别它操纵的不同设备，当此驱动模块操纵不只一个设备时。
+			</P
+><P
+>将内核驱动模块加载入内核意味着要向内核注册自己。这个工作是和驱动模块获
+			得主设备号时初始化一同进行的。你可以使用头文件
+			<TT
+CLASS="FILENAME"
+>linux/fs.h</TT
+>中的函数register_chrdev来实
+			现。</P
+><PRE
+CLASS="SCREEN"
+>int register_chrdev(unsigned int major, const char *name, struct file_operations *fops);
+			</PRE
+><P
+>其中<CODE
+CLASS="VARNAME"
+>unsigned int major</CODE
+>是你申请的主设备号，
+			<CODE
+CLASS="VARNAME"
+>const char *name</CODE
+>是将要在文件<TT
+CLASS="FILENAME"
+>/proc/devices</TT
+>
+			<CODE
+CLASS="VARNAME"
+>struct file_operations *fops</CODE
+>是指向你的驱动模块的
+			<CODE
+CLASS="VARNAME"
+>file_operations</CODE
+>表的指针。负的返回值意味着注册失败。
+			注意注册并不需要提供从设备号。内核本身并不在意从设备号。 </P
+><P
+>现在的问题是你如何申请到一个没有被使用的主设备号？最简单的方法是查看文件
+			<TT
+CLASS="FILENAME"
+>Documentation/devices.txt</TT
+>从中挑选一个没有被使用的。这不是
+			一劳永逸的方法因为你无法得知该主设备号在将来会被占用。最终的方法是让内核为你动
+			态分配一个。</P
+><P
+>如果你向函数<CODE
+CLASS="FUNCTION"
+>register_chrdev</CODE
+>传递为0的主设备号，那么
+			返回的就是动态分配的主设备号。副作用就是既然你无法得知主设备号，你就无法预先建
+			立一个设备文件。 有多种解决方法。第一种方法是新注册的驱动模块会输出自己新分配
+			到的主设备号，所以我们可以手工建立需要的设备文件。第二种是利用文件
+			<TT
+CLASS="FILENAME"
+>/proc/devices</TT
+>新注册的驱动模块的入口，要么手工建立设备文件，
+			要么编一个脚本去自动读取该文件并且生成设备文件。第三种是在我们的模块中，当注册
+			成功时，使用<CODE
+CLASS="FUNCTION"
+>mknod</CODE
+>统调用建立设备文件并且调用 rm 删除该设备
+			文件在驱动模块调用函数<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>前。</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN686"
+>注销一个设备</A
+></H2
+><A
+NAME="AEN688"
+></A
+><P
+>即使时root也不能允许随意卸载内核模块。当一个进程已经打开一个设备文件时我
+			们卸载了该设备文件使用的内核模块，我们此时再对该文件的访问将会导致对已卸载的内
+			核模块代码内存区的访问。幸运的话我们最多获得一个讨厌的错误警告。如果此时已经在
+			该内存区加载了另一个模块，倒霉的你将会在内核中跳转执行意料外的代码。结果是无法
+			预料的，而且多半是不那么令人愉快的。</P
+><P
+>平常，当你不允许某项操作时，你会得到该操作返回的错误值（一般为一负的值）。
+			但对于无返回值的函数<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>这是不可能的。然而，却有
+			一个计数器跟踪着有多少进程正在使用该模块。你可以通过查看文件
+			<TT
+CLASS="FILENAME"
+>/proc/modules</TT
+>的第三列来获取这些信息。如果该值非零，则卸载
+			就会失败。你不需要在你模块中的函数<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>中检查该
+			计数器，因为该项检查由头文件<TT
+CLASS="FILENAME"
+>linux/module.c</TT
+>中定义的系统调用
+			<CODE
+CLASS="FUNCTION"
+>sys_delete_module</CODE
+>完成。你也不应该直接对该计数器进行操作。
+			你应该使用在文件<TT
+CLASS="FILENAME"
+>linux/modules.h</TT
+>定义的宏
+			来增加，减小和读取该计数器：</P
+><P
+></P
+><UL
+><LI
+><P
+><CODE
+CLASS="VARNAME"
+>try_module_get(THIS_MODULE)</CODE
+>: Increment the use count.</P
+></LI
+><LI
+><P
+><CODE
+CLASS="VARNAME"
+>try_module_put(THIS_MODULE)</CODE
+>: Decrement the use count.</P
+></LI
+></UL
+><P
+>保持该计数器时刻精确是非常重要的；如果你丢失了正确的计数，你将无法卸载模块，
+			那就只有重启了。不过这种情况在今后编写内核模块时也是无法避免的。</P
+><A
+NAME="AEN707"
+></A
+><A
+NAME="AEN709"
+></A
+><A
+NAME="AEN711"
+></A
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN713"
+>chardev.c</A
+></H2
+><P
+>下面的代码示范了一个叫做<TT
+CLASS="FILENAME"
+>chardev</TT
+>的字符设备。你可以用
+			<TT
+CLASS="FILENAME"
+>cat</TT
+>输出该设备文件的内容（或用别的程序打开它）时，驱动模块
+			会将该设备文件被读取的次数显示。目前对设备文件的写操作还不被支持（像<B
+CLASS="COMMAND"
+>echo "hi" &#62;
+			/dev/hello</B
+>），但会捕捉这些操作并且告诉用户该操作不被支持。不要担心我
+			们对读入缓冲区的数据做了什么；我们什么都没做。我们只是读入数据并输出我们已经接
+			收到的数据的信息。</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN719"
+></A
+><P
+><B
+>Example 4-1. chardev.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  chardev.c: Creates a read-only char device that says how many times
+ *  you've read from the dev file
+ */
+
+#include &#60;linux/kernel.h&#62;
+#include &#60;linux/module.h&#62;
+#include &#60;linux/fs.h&#62;
+#include &#60;asm/uaccess.h&#62;	/* for put_user */
+
+/*  
+ *  Prototypes - this would normally go in a .h file
+ */
+int init_module(void);
+void cleanup_module(void);
+static int device_open(struct inode *, struct file *);
+static int device_release(struct inode *, struct file *);
+static ssize_t device_read(struct file *, char *, size_t, loff_t *);
+static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
+
+#define SUCCESS 0
+#define DEVICE_NAME "chardev"	/* Dev name as it appears in /proc/devices   */
+#define BUF_LEN 80		/* Max length of the message from the device */
+
+/* 
+ * Global variables are declared as static, so are global within the file. 
+ */
+
+static int Major;		/* Major number assigned to our device driver */
+static int Device_Open = 0;	/* Is device open?  
+				 						 * Used to prevent multiple access to device */
+static char msg[BUF_LEN];	/* The msg the device will give when asked */
+static char *msg_Ptr;
+
+static struct file_operations fops = {
+	.read = device_read,
+	.write = device_write,
+	.open = device_open,
+	.release = device_release
+};
+
+/*
+ * This function is called when the module is loaded
+ */
+
+int init_module(void)
+{
+	Major = register_chrdev(0, DEVICE_NAME, &#38;fops);
+
+	if (Major &#60; 0) {
+		printk("Registering the character device failed with %d\n",
+		       Major);
+		return Major;
+	}
+
+	printk(KERN_INFO "I was assigned major number %d.  To talk to\n", Major);
+	printk(KERN_INFO "the driver, create a dev file with\n");
+	printk(KERN_INFO "'mknod /dev/hello c %d 0'.\n", Major);
+	printk(KERN_INFO "Try various minor numbers.  Try to cat and echo to\n");
+	printk(KERN_INFO "the device file.\n");
+	printk(KERN_INFO "Remove the device file and module when done.\n");
+
+	return SUCCESS;
+}
+
+/*
+ * This function is called when the module is unloaded
+ */
+void cleanup_module(void)
+{
+	/* 
+	 * Unregister the device 
+	 */
+	int ret = unregister_chrdev(Major, DEVICE_NAME);
+	if (ret &#60; 0)
+		printk(KERN_ALERT "Error in unregister_chrdev: %d\n", ret);
+}
+
+/*
+ * Methods
+ */
+
+/* 
+ * Called when a process tries to open the device file, like
+ * "cat /dev/mycharfile"
+ */
+static int device_open(struct inode *inode, struct file *file)
+{
+	static int counter = 0;
+	if (Device_Open)
+		return -EBUSY;
+	Device_Open++;
+	sprintf(msg, "I already told you %d times Hello world!\n", counter++);
+	msg_Ptr = msg;
+	try_module_get(THIS_MODULE);
+
+	return SUCCESS;
+}
+
+/* 
+ * Called when a process closes the device file.
+ */
+static int device_release(struct inode *inode, struct file *file)
+{
+	Device_Open--;		/* We're now ready for our next caller */
+
+	/* 
+	 * Decrement the usage count, or else once you opened the file, you'll
+	 * never get get rid of the module. 
+	 */
+	module_put(THIS_MODULE);
+
+	return 0;
+}
+
+/* 
+ * Called when a process, which already opened the dev file, attempts to
+ * read from it.
+ */
+static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
+			   char *buffer,	/* buffer to fill with data */
+			   size_t length,	/* length of the buffer     */
+			   loff_t * offset)
+{
+	/*
+	 * Number of bytes actually written to the buffer 
+	 */
+	int bytes_read = 0;
+
+	/*
+	 * If we're at the end of the message, 
+	 * return 0 signifying end of file 
+	 */
+	if (*msg_Ptr == 0)
+		return 0;
+
+	/* 
+	 * Actually put the data into the buffer 
+	 */
+	while (length &#38;&#38; *msg_Ptr) {
+
+		/* 
+		 * The buffer is in the user data segment, not the kernel 
+		 * segment so "*" assignment won't work.  We have to use 
+		 * put_user which copies data from the kernel data segment to
+		 * the user data segment. 
+		 */
+		put_user(*(msg_Ptr++), buffer++);
+
+		length--;
+		bytes_read++;
+	}
+
+	/* 
+	 * Most read functions return the number of bytes put into the buffer
+	 */
+	return bytes_read;
+}
+
+/*  
+ * Called when a process writes to dev file: echo "hi" &#62; /dev/hello 
+ */
+static ssize_t
+device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
+{
+	printk("&#60;1&#62;Sorry, this operation isn't supported.\n");
+	return -EINVAL;
+}</PRE
+></DIV
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN723"
+>为多个版本的内核编写内核模块</A
+></H2
+><A
+NAME="AEN725"
+></A
+><A
+NAME="AEN727"
+></A
+><A
+NAME="AEN729"
+></A
+><P
+>系统调用，也就是内核提供给进程的接口，基本上是保持不变的。也许会添入新的
+			系统调用，但那些已有的不会被改动。这对于向下兼容是非常重要的。在多数情况下，设
+			备文件是保持不变的。但内核的内部在不同版本之间还是会有区别的。</P
+><P
+>Linux内核分为稳定版本（版本号中间为偶数）和试验版本（版本号中间为奇数）。
+			试验版本中可以试验各种各样的新而酷的主意，有些会被证实是一个错误，有些在下一版
+			中会被完善。总之，你不能依赖这些版本中的接口（这也是我不在本文档中支持它们的原因，
+			它们更新的太快了)。在稳定版本中，我们可以期望接口保持一致，除了那些修改代码中错误的版本。
+			</P
+><P
+>如果你要支持多版本的内核，你需要编写为不同内核编译的代码树。可以通过比较宏
+			<CODE
+CLASS="VARNAME"
+>LINUX_VERSION_CODE</CODE
+>和宏<CODE
+CLASS="VARNAME"
+>KERNEL_VERSION</CODE
+>在版本号为<CODE
+CLASS="VARNAME"
+>a.b.c</CODE
+>
+			的内核中，该宏的值应该为 2^16×a+2^8×b+c </P
+><P
+>			在上一个版本中该文档还保留了详细的如何向后兼容老内核的介绍，现在我们决定打破这个传统。
+			对为老内核编写驱动感兴趣的读者应该参考对应版本的LKMPG，也就是说，2.4.x版本的LKMPG对应
+			2.4.x的内核，2.6.x版本的LKMPG对应2.6.x的内核。
+			</P
+><P
+>更新：我们上面所说的对于上至（包括）2.6.10的内核都是真的。你可能已经注意到了最新的内核看起来不同。 它们不像现在的2.6.x.y。前三项的含义基本上不变，也会加一个<CODE
+CLASS="VARNAME"
+>subpatchlevel</CODE
+>，将表示安全补丁， 直到下一个<CODE
+CLASS="VARNAME"
+>subpatchlevel</CODE
+>出来。所以人们能够选择稳定的代码树和安全升级或者使用最新的内核作为开发树。 如果你对整个故事感兴趣，搜索一下内核邮件列表档案。
+			</P
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN667"
+HREF="c603.htm#AEN667"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这只是习惯上的。将设备文件放
+			在你的用户目录下是没有问题的。但是当真正提供成熟的驱动模块时，请保证将设备文
+			件放在<TT
+CLASS="FILENAME"
+>/dev</TT
+>下。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c468.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c741.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Preliminaries</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>The /proc File System</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

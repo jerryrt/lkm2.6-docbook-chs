@@ -1,0 +1,12 @@
+<sect1><title>使用 /proc 作为输入</title>
+
+	<indexterm><primary>input</primary><secondary>using /proc for</secondary></indexterm>
+	<indexterm><primary>proc</primary><secondary>using for input</secondary></indexterm>
+
+	<para>现在这还只是个占位。最终，我希望看到（已经要写）关于sysfs的一个章节。如果你对sysfs熟悉，而且愿意参与 这一章节的撰写，请尽管联系我们（LKMPG维护者）来获取更多细节。
+</para>
+</sect1>
+
+<!--
+vim: tw=128
+-->

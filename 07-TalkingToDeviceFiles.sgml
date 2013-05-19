@@ -1,0 +1,74 @@
+<sect1><title>与设备文件对话 (writes and IOCTLs)</title>
+
+	<indexterm><primary>ioctl</primary></indexterm>
+	<indexterm><primary>device files</primary><secondary>input to</secondary></indexterm>
+	<indexterm><primary>device files</primary><secondary>write to</secondary></indexterm>
+
+	<para>设备文件是用来代表相对应的硬件设备。绝大多数的硬件设备是用来进行输出和输入操作的，
+	所以在内核中肯定有内核从进程中获得发送到设备的输出的机制。这是通过打开一个设备文件然后
+	向其中进行写操作来实现的，如同对普通文件的写操作。在下面的的例子中，这是通过
+	<function>device_write</function>实现的。</para>
+
+	<para>但这并不总是够用。设想你有一个通过串口连接的调制解调器(即使你使用的是内置调制解调器，
+	对于CPU来说同样也是通过连接在串口上来实现工作的）。通常我们通过打开一个设备文件向调制解调器
+	发送信息（将要通过通信线路传输的指令或数据）或读取信息（从通信线路中返回的响应指令或数据）。
+	但是，我们如何设置同串口对话的速率，也就是向串口传输数据的速率这个问题仍然没有解决。</para>
+
+	<indexterm><primary>serial port</primary></indexterm>
+	<indexterm><primary>modem</primary></indexterm>
+
+	<para>解决之道是在Unix系统中的函数<function>ioctl</function>(Input Output ConTroL的简写)。
+	每个设备可以有自己的<function>ioctl</function>命令，通过读取<function>ioctl</function>'s
+	可以从进程中向内核发送信息，或写<function>ioctl</function>'s向进程返回信息
+	<footnote><para>注意这儿“读”与“写”的角色再次翻转过来，在ioctl's中读是向内核发送信息，
+	而写是从内核获取信息。</para></footnote>，或者两者都是，或都不是。函数<function>ioctl</function>
+	调用时需要三个参数：合适的设备文件的文件描述符，ioctl号，和一个可以被一个任务使用来
+	传递任何东西的long类型的参数<footnote><para>这样的表述并不准确。
+	例如你不能在ioctl中传递一个结构体，但你可以通过传递指向这个结构体的指针实现。</para></footnote></para>
+
+	<para>ioctl号是反映主设备号，ioctl的种类，对应的命令和参数类型的数字。它通常是通过在头文件中宏调用
+	(<varname>_IO</varname>, <varname>_IOR</varname>, <varname>_IOW</varname>
+	或<varname>_IOWR</varname>，取决于其种类)来建立的。该头文件应该被使用
+	<function>ioctl</function>的用户程序包含（这样它们就可以生成正确的<function>ioctl</function>'s）
+	和内核驱动模块包含（这样模块才能理解它）。在下面的例子中，头文件为<filename
+	class="headerfile">chardev.h</filename>，源程序为<function>ioctl.c</function>。</para>
+
+	<indexterm><primary>_IO</primary></indexterm>
+	<indexterm><primary>_IOR</primary></indexterm>
+	<indexterm><primary>_IOW</primary></indexterm>
+	<indexterm><primary>_IOWR</primary></indexterm>
+
+	<para>即使你只想在自己的模块中使用<function>ioctl</function>s，你最好还是接收正式的
+	<function>ioctl</function>标准，这样当你意外的使用别人的<function>ioctl</function>s，
+	或别人使用你的时，你会知道有错误发生。详情参见内核代码目录树下的文件
+	<filename>Documentation/ioctl-number.txt</filename>.</para>
+
+	<indexterm><primary>official ioctl assignment</primary></indexterm>
+	<indexterm><primary>ioctl</primary><secondary>official assignment</secondary></indexterm>
+	<indexterm><primary>source file</primary><secondary>chardev.c</secondary></indexterm>
+
+
+<example><title>chardev.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/07-TalkingToDeviceFiles/chardev.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<indexterm><primary>source file</primary><secondary><filename>chardev.h</filename></secondary></indexterm>
+
+
+<example><title>chardev.h</title><programlisting><inlinegraphic fileref="lkmpg-examples/07-TalkingToDeviceFiles/chardev.h" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<indexterm><primary>defining ioctls</primary></indexterm>
+	<indexterm><primary>ioctl</primary><secondary>defining</secondary></indexterm>
+	<indexterm><primary>source file</primary><secondary><filename>ioctl.c</filename></secondary></indexterm>
+
+
+<example><title>ioctl.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/07-TalkingToDeviceFiles/ioctl.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

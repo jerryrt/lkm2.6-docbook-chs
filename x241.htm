@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Hello World (part 2)</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="PREVIOUS"
+TITLE="编译内核模块"
+HREF="x208.htm"><LINK
+REL="NEXT"
+TITLE="Hello World (part 3): 关于__init和__exit宏"
+HREF="x269.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x208.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 2. Hello World</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x269.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="HELLO2"
+>Hello World (part 2)</A
+></H1
+><A
+NAME="AEN243"
+></A
+><A
+NAME="AEN245"
+></A
+><P
+>在内核Linux 2.4中，你可以为你的模块的“开始”和“结束”函数起任意的名字。它们不再必须使用
+	<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>和<CODE
+CLASS="FUNCTION"
+>cleanup_module()</CODE
+>的名字。这可以通过宏
+	<CODE
+CLASS="FUNCTION"
+>module_init()</CODE
+>和<CODE
+CLASS="FUNCTION"
+>module_exit()</CODE
+>实现。这些宏在头文件<TT
+CLASS="FILENAME"
+>linux/init.h</TT
+>定义。唯一需要注意的地方是函数必须在宏的使用前定义，否则会有编译
+	错误。下面就是一个例子。</P
+><A
+NAME="AEN253"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN256"
+></A
+><P
+><B
+>Example 2-3. hello-2.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*  
+ *  hello-2.c - Demonstrating the module_init() and module_exit() macros.
+ *  This is preferred over using init_module() and cleanup_module().
+ */
+#include &#60;linux/module.h&#62;	/* Needed by all modules */
+#include &#60;linux/kernel.h&#62;	/* Needed for KERN_ALERT */
+#include &#60;linux/init.h&#62;		/* Needed for the macros */
+
+static int __init hello_2_init(void)
+{
+	printk(KERN_INFO "Hello, world 2\n");
+	return 0;
+}
+
+static void __exit hello_2_exit(void)
+{
+	printk(KERN_INFO "Goodbye, world 2\n");
+}
+
+module_init(hello_2_init);
+module_exit(hello_2_exit);</PRE
+></DIV
+><P
+>现在我们已经写过两个真正的模块了。添加编译另一个模块的选项十分简单，如下：</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN261"
+></A
+><P
+><B
+>Example 2-4. 两个内核模块使用的Makefile</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>obj-m += hello-1.o
+obj-m += hello-2.o</PRE
+></DIV
+><P
+>现在让我们来研究一下<TT
+CLASS="FILENAME"
+>linux/drivers/char/Makefile</TT
+>这个实际中的例子。就如同你看到的，
+	一些被编译进内核 (obj-y)，但是这些obj-m哪里去了呢？对于熟悉shell脚本的人这不难理解。这些在Makefile中随处可见
+	的obj-$(CONFIG_FOO)的指令将会在CONFIG_FOO被设置后扩展为你熟悉的obj-y或obj-m。这其实就是你在使用
+	<B
+CLASS="COMMAND"
+>make menuconfig</B
+>编译内核时生成的<TT
+CLASS="FILENAME"
+>linux/.config</TT
+>中设置的东西。
+	</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x208.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x269.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>编译内核模块</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Hello World (part 3): 关于<TT
+CLASS="LITERAL"
+>__init</TT
+>和<TT
+CLASS="LITERAL"
+>__exit</TT
+>宏</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

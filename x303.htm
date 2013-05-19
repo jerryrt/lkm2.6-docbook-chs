@@ -1,0 +1,324 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Hello World (part 4): 内核模块证书和内核模块文档说明</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="PREVIOUS"
+TITLE="Hello World (part 3): 关于__init和__exit宏"
+HREF="x269.htm"><LINK
+REL="NEXT"
+TITLE="从命令行传递参数给内核模块"
+HREF="x346.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x269.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 2. Hello World</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x346.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN303"
+>Hello World (part 4): 内核模块证书和内核模块文档说明</A
+></H1
+><P
+>如果你在使用2.4或更新的内核，当你加载你的模块时，你也许注意到了这些输出信息：</P
+><PRE
+CLASS="SCREEN"
+># insmod hello-3.o
+Warning: loading hello-3.o will taint the kernel: no license
+  See http://www.tux.org/lkml/#export-tainted for information about tainted modules
+Hello, world 3
+Module hello-3 loaded, with warnings
+	</PRE
+><A
+NAME="AEN307"
+></A
+><P
+>在2.4或更新的内核中，一种识别代码是否在GPL许可下发布的机制被引入，
+	因此人们可以在使用非公开的源代码产品时得到警告。这通过在下一章展示的宏
+	<CODE
+CLASS="FUNCTION"
+>MODULE_LICENSE()</CODE
+>当你设置在GPL证书下发布你的代码时，
+	你可以取消这些警告。这种证书机制在头文件<TT
+CLASS="FILENAME"
+>linux/module.h</TT
+>
+	实现，同时还有一些相关文档信息。
+
+<PRE
+CLASS="SCREEN"
+>/*
+ * The following license idents are currently accepted as indicating free
+ * software modules
+ *
+ *	"GPL"				[GNU Public License v2 or later]
+ *	"GPL v2"			[GNU Public License v2]
+ *	"GPL and additional rights"	[GNU Public License v2 rights and more]
+ *	"Dual BSD/GPL"			[GNU Public License v2
+ *					 or BSD license choice]
+ *	"Dual MPL/GPL"			[GNU Public License v2
+ *					 or Mozilla license choice]
+ *
+ * The following other idents are available
+ *
+ *	"Proprietary"			[Non free products]
+ *
+ * There are dual licensed components, but when running with Linux it is the
+ * GPL that is relevant so this is a non issue. Similarly LGPL linked with GPL
+ * is a GPL combined work.
+ *
+ * This exists for several reasons
+ * 1.	So modinfo can show license info for users wanting to vet their setup 
+ *	is free
+ * 2.	So the community can ignore bug reports including proprietary modules
+ * 3.	So vendors can do likewise based on their own policies
+ */</PRE
+>
+        </P
+><A
+NAME="AEN314"
+></A
+><A
+NAME="AEN317"
+></A
+><A
+NAME="AEN320"
+></A
+><P
+>类似的，宏<CODE
+CLASS="FUNCTION"
+>MODULE_DESCRIPTION()</CODE
+>用来描述模块的用途。
+	宏<CODE
+CLASS="FUNCTION"
+>MODULE_AUTHOR()</CODE
+>用来声明模块的作者。宏<CODE
+CLASS="FUNCTION"
+>MODULE_SUPPORTED_DEVICE()</CODE
+>
+	声明模块支持的设备。</P
+><P
+>这些宏都在头文件<TT
+CLASS="FILENAME"
+>linux/module.h</TT
+>定义，
+	并且内核本身并不使用这些宏。它们只是用来提供识别信息，可用工具程序像<SPAN
+CLASS="APPLICATION"
+>objdump</SPAN
+>查看。
+	作为一个练习，使用grep从目录<TT
+CLASS="FILENAME"
+>linux/drivers</TT
+>看一看这些模块的作者是如何
+	为他们的模块提供识别信息和档案的。</P
+><P
+>我推荐在<TT
+CLASS="FILENAME"
+>/usr/src/linux-2.6.x/&#62;目录下使用类似<B
+CLASS="COMMAND"
+>grep -inr MODULE_AUTHOR *</B
+>的命令。不熟悉命令行工具的人可能喜欢网上那样的方法， 搜索提供LXR做索引的内核源代码树的网站（或在自己的本地机器上安装它）。</TT
+></P
+><P
+>使用像emacs或vi那样传统的Unix编辑器的用户将会发现tag文件很有用。它们能够在<TT
+CLASS="FILENAME"
+>/usr/src/linux-2.6.x/&#62; 下用<B
+CLASS="COMMAND"
+>make tags</B
+>或<B
+CLASS="COMMAND"
+>make TAGS</B
+>生成。 一旦你在内核目录树中得到了这种tag文件，你就能把鼠标放到某个函数调用上使用一些组合键直接跳 到函数的定义处。
+	<A
+NAME="AEN338"
+></A
+>
+
+
+<DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN342"
+></A
+><P
+><B
+>Example 2-6. hello-4.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*  
+ *  hello-4.c - Demonstrates module documentation.
+ */
+#include &#60;linux/module.h&#62;
+#include &#60;linux/kernel.h&#62;
+#include &#60;linux/init.h&#62;
+#define DRIVER_AUTHOR "Peter Jay Salzman &#60;p@dirac.org&#62;"
+#define DRIVER_DESC   "A sample driver"
+
+static int __init init_hello_4(void)
+{
+	printk(KERN_INFO "Hello, world 4\n");
+	return 0;
+}
+
+static void __exit cleanup_hello_4(void)
+{
+	printk(KERN_INFO "Goodbye, world 4\n");
+}
+
+module_init(init_hello_4);
+module_exit(cleanup_hello_4);
+
+/*  
+ *  You can use strings, like this:
+ */
+
+/* 
+ * Get rid of taint message by declaring code as GPL. 
+ */
+MODULE_LICENSE("GPL");
+
+/*
+ * Or with defines, like this:
+ */
+MODULE_AUTHOR(DRIVER_AUTHOR);	/* Who wrote this module? */
+MODULE_DESCRIPTION(DRIVER_DESC);	/* What does this module do */
+
+/*  
+ *  This module uses /dev/testdevice.  The MODULE_SUPPORTED_DEVICE macro might
+ *  be used in the future to help automatic configuration of modules, but is 
+ *  currently unused other than for documentation purposes.
+ */
+MODULE_SUPPORTED_DEVICE("testdevice");</PRE
+></DIV
+></TT
+></P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x269.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x346.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Hello World (part 3): 关于<TT
+CLASS="LITERAL"
+>__init</TT
+>和<TT
+CLASS="LITERAL"
+>__exit</TT
+>宏</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>从命令行传递参数给内核模块</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

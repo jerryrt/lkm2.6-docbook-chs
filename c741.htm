@@ -1,0 +1,449 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>The /proc File System</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="Character Device Files"
+HREF="c603.htm"><LINK
+REL="NEXT"
+TITLE="读写 /proc 文件"
+HREF="x805.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c603.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x805.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN741"
+></A
+>Chapter 5. The /proc File System</H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>Table of Contents</B
+></DT
+><DT
+><A
+HREF="c741.htm#AEN743"
+>关于 /proc 文件系统</A
+></DT
+><DT
+><A
+HREF="x805.htm"
+>读写 /proc 文件</A
+></DT
+><DT
+><A
+HREF="x826.htm"
+>用标准文件系统管理 /proc 文件</A
+></DT
+><DT
+><A
+HREF="x856.htm"
+>使用seq_file管理 /proc 文件</A
+></DT
+></DL
+></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN743"
+>关于 /proc 文件系统</A
+></H1
+><A
+NAME="AEN745"
+></A
+><A
+NAME="AEN748"
+></A
+><P
+>在Linux中有另一种内核和内核模块向进程传递信息的方法，那就是通过
+	<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件系统。它原先设计的目的是为查看进程信息
+	提供一个方便的途径，现在它被用来向用户提供各种内核中被感兴趣的内容。像文件
+	<TT
+CLASS="FILENAME"
+>/proc/modules</TT
+>里是已加载模块的列表，文件<TT
+CLASS="FILENAME"
+>/proc/meminfo</TT
+>
+	里是关于内存使用的信息。</P
+><A
+NAME="AEN756"
+></A
+><A
+NAME="AEN759"
+></A
+><P
+>使用 proc 文件系统的方法同使用设备文件很相似。你建立一个包含
+	<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件需要的所有信息的结构体，
+	这其中包括处理各种事务的函数的指针（在我们的例子中，只用到从<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件读取信息的函数）。然后在<CODE
+CLASS="FUNCTION"
+>init_module</CODE
+>
+	时向内核注册这个结构体，在<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>时注销这个结构体。</P
+><P
+>我们使用<CODE
+CLASS="FUNCTION"
+>proc_register_dynamic</CODE
+><A
+NAME="AEN769"
+HREF="#FTN.AEN769"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>的原因是我们不用去设置inode，而留给
+	内核去自动分配从而避免系统冲突错误。 普通的文件系统是建立在磁盘上的，而 /proc 的文件仅仅是建立在内存中的。
+	在前种情况中，inode的数值是一个指向存储在磁盘某个位置的文件的索引节点（inode就是index-node的缩写）。
+	该索引节点储存着文件的信息，像文件的权限；同时还有在哪儿能找到文件中的数据。</P
+><A
+NAME="AEN771"
+></A
+><A
+NAME="AEN774"
+></A
+><A
+NAME="AEN777"
+></A
+><P
+>因为我们无法得知该文件是被打开的或关闭的，我们也无法去使用宏
+	<CODE
+CLASS="VARNAME"
+>try_module_get</CODE
+>和<CODE
+CLASS="VARNAME"
+>try_module_put</CODE
+>在下面的模块中，
+	我们无法避免该文件被打开而同时模块又被卸载。&#13;</P
+><P
+>这里有一个使用<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件的简单例子。这是<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件系统的HelloWorld。分为三个部分： 在<CODE
+CLASS="FUNCTION"
+>init_module<CODE
+CLASS="FUNCTION"
+>函数中创建一个 <TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 文件，当 <TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 在收回函数procfs_read中被读取时返回一个 值（和一个缓冲区），在<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>函数中删除 <TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 文件。</CODE
+></CODE
+></P
+><P
+>当模块被加载时，用<CODE
+CLASS="FUNCTION"
+>create_proc_entry</CODE
+>函数创建 <TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 文件。返回值是一个<CODE
+CLASS="VARNAME"
+>struct proc_dir_entry *</CODE
+>，它将被用来 配置 <TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 文件（比如，文件的所有者）。空返回值表示创建失败。</P
+><P
+>每当<TT
+CLASS="FILENAME"
+>/proc/helloworld</TT
+> 文件被读取时，<CODE
+CLASS="FUNCTION"
+>procfs_read</CODE
+>函数都会被调用。这个函数的其中两个参数非常重要： 缓冲区（第一个参数）和偏移量（第三个）。缓冲区的内容将会返回给读取它的应用程序（比如<B
+CLASS="COMMAND"
+>cat</B
+>命令）。 偏移量是文件中的当前位置。如果这个函数的返回值不是空，它还会被再调用一次。当心这个函数， 如果它从不返回零，这个读取函数将会永无止境地被调用。</P
+><PRE
+CLASS="SCREEN"
+>% cat /proc/helloworld
+HelloWorld!</PRE
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN801"
+></A
+><P
+><B
+>Example 5-1. procfs1.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  procfs1.c -  create a "file" in /proc
+ */
+
+#include &#60;linux/module.h&#62;	/* Specifically, a module */
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/proc_fs.h&#62;	/* Necessary because we use the proc fs */
+
+#define procfs_name "helloworld"
+/**
+ * This structure hold information about the /proc file
+ *
+ */
+struct proc_dir_entry *Our_Proc_File;
+/* Put data into the proc fs file.
+ *
+ * Arguments
+ * =========
+ * 1. The buffer where the data is to be inserted, if
+ *    you decide to use it.
+ * 2. A pointer to a pointer to characters. This is
+ *    useful if you don't want to use the buffer
+ *    allocated by the kernel.
+ * 3. The current position in the file
+ * 4. The size of the buffer in the first argument.
+ * 5. Write a "1" here to indicate EOF.
+ * 6. A pointer to data (useful in case one common
+ *    read for multiple /proc/... entries)
+ *
+ * Usage and Return Value
+ * ======================
+ * A return value of zero means you have no further
+ * information at this time (end of file). A negative
+ * return value is an error condition.
+ *
+ * For More Information
+ * ====================
+ * The way I discovered what to do with this function
+ * wasn't by reading documentation, but by reading the
+ * code which used it. I just looked to see what uses
+ * the get_info field of proc_dir_entry struct (I used a
+ * combination of find and grep, if you're interested),
+ * and I saw that it is used in &#60;kernel source
+ * directory&#62;/fs/proc/array.c.
+ *
+ * If something is unknown about the kernel, this is
+ * usually the way to go. In Linux we have the great
+ * advantage of having the kernel source code for
+ * free - use it.
+ */
+int
+procfile_read(char *buffer,
+              char **buffer_location,
+              off_t offset, int buffer_length, int *eof, void *data)
+{
+        int ret;
+        printk(KERN_INFO "procfile_read (/proc/%s) called\n", procfs_name);
+        /*
+         * We give all of our information in one go, so if the
+         * user asks us if we have more information the
+         * answer should always be no.
+         *
+         * This is important because the standard read
+         * function from the library would continue to issue
+         * the read system call until the kernel replies
+         * that it has no more information, or until its
+         * buffer is filled.
+         */
+        if (offset &#62; 0) {
+                /* we have finished to read, return 0 */
+                ret = 0;
+        } else {
+                /* fill the buffer, return the buffer size */
+                ret = sprintf(buffer, "HelloWorld!\n");
+        }
+        return ret;
+}
+int init_module()
+{
+        Our_Proc_File = create_proc_entry(procfs_name, 0644, NULL);
+        if (Our_Proc_File == NULL) {
+                remove_proc_entry(procfs_name, &#38;proc_root);
+                printk(KERN_ALERT "Error: Could not initialize /proc/%s\n",
+                       procfs_name);
+                return -ENOMEM;
+        }
+        Our_Proc_File-&#62;read_proc = procfile_read;
+        Our_Proc_File-&#62;owner     = THIS_MODULE;
+        Our_Proc_File-&#62;mode      = S_IFREG | S_IRUGO;
+        Our_Proc_File-&#62;uid       = 0;
+        Our_Proc_File-&#62;gid       = 0;
+        Our_Proc_File-&#62;size      = 37;
+        printk(KERN_INFO "/proc/%s created\n", procfs_name);
+        return 0;       /* everything is ok */
+}
+void cleanup_module()
+{
+        remove_proc_entry(procfs_name, &#38;proc_root);
+        printk(KERN_INFO "/proc/%s removed\n", procfs_name);
+}</PRE
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN769"
+HREF="c741.htm#AEN769"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这是在2.0版本中的做法，
+	在版本2.2中，当我们把inode设为0时，就已经这样自动处理了。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c603.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x805.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Character Device Files</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>读写 /proc 文件</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

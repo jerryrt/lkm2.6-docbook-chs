@@ -1,0 +1,498 @@
+<sect1><title>Hello, World (part 1): 最简单的内核模块</title>
+
+	<para>当第一个洞穴程序员在第一台洞穴计算机的墙上上凿写第一个程序时， 这是一个在羚羊皮上输出`Hello, world'的字符串。罗马的编程书籍上是以 `Salut, Mundi'这样的程序开始的。 我不明白人们为什么要破坏这个传统， 但我认为还是不明白为好。我们将从编写一系列的`Hello, world'模块开始， 一步步展示编写内核模块的基础的方方面面。</para>
+
+	<para>这可能是一个最简单的模块了。先别急着编译它。我们将在下章模块编译的章节介绍相关内容。</para>
+
+	<indexterm><primary>source file</primary><secondary>hello-1.c</secondary></indexterm>
+
+
+<example><title>hello-1.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/hello-1.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<indexterm><primary><function>init_module()</function></primary></indexterm>
+	<indexterm><primary><function>cleanup_module()</function></primary></indexterm>
+	
+	<para>一个内核模块应该至少包含两个函数。一个“开始”(初始化)的函数被称为<function>init_module()</function>
+	还有一个“结束” (干一些收尾清理的工作)的函数被称为<function>cleanup_module()</function>
+	，当内核模块被rmmod卸载时被执行。实际上，从内核版本2.3.13开始这种情况有些改变。
+	你可以为你的开始和结束函数起任意的名字。 你将在以后学习如何实现这一点<xref linkend="hello2">。
+	实际上，这个新方法时推荐的实现方法。但是，许多人仍然使<function>init_module()</function>和
+	<function>cleanup_module()</function>作为他们的开始和结束函数。</para>
+
+	<para>一般，<function>init_module()</function>要么向内核注册它可以处理的事物，要么用自己的代码
+	替代某个内核函数(代码通常这样做然后再去调用原先的函数代码)。函数
+	<function>cleanup_module()</function>应该撤消任何<function>init_module()</function>做的事，从而
+	内核模块可以被安全的卸载。</para>
+
+	<para>最后，任一个内核模块需要包含<filename role="headerfile">linux/module.h</filename>。 我们仅仅需要包含
+	<filename role="headerfile">linux/kernel.h</filename>当需要使用
+	<function>printk()</function>记录级别的宏扩展时<varname>KERN_ALERT</varname>，相关内容将在<xref
+	linkend="introducingprintk">中介绍。</para>
+
+
+
+		<sect2 id="introducingprintk"><title>介绍<function>printk()</function></title>
+
+			<indexterm><primary><function>init_module()</function></primary></indexterm>
+			<indexterm><primary><function>cleanup_module()</function></primary></indexterm>
+
+			<para>不管你可能怎么想，<function>printk()</function>并不是设计用来同用户交互的，虽然我们在
+			<application>hello-1</application>就是出于这样的目的使用它！它实际上是为内核提供日志功能，
+			记录内核信息或用来给出警告。因此，每个<function>printk()</function>
+			声明都会带一个优先级，就像你看到的<varname>&lt;1&gt;</varname>和<varname>KERN_ALERT</varname>
+			那样。内核总共定义了八个优先级的宏， 所以你不必使用晦涩的数字代码，并且你可以从文件
+			<filename role="headerfile">linux/kernel.h</filename>查看这些宏和它们的意义。如果你
+			不指明优先级，默认的优先级<literal>DEFAULT_MESSAGE_LOGLEVEL</literal>将被采用。</para>
+
+			<para>阅读一下这些优先级的宏。头文件同时也描述了每个优先级的意义。在实际中，
+			使用宏而不要使用数字，就像<literal>&lt;4&gt;</literal>。总是使用宏，就像
+			<literal>KERN_WARNING</literal>。</para>
+
+			<para>当优先级低于<varname>int console_loglevel</varname>，信息将直接打印在你的终端上。如果同时
+			<command>syslogd</command>和<application>klogd</application>都在运行，信息也同时添加在文件
+			<filename>/var/log/messages</filename>，而不管是否显示在控制台上与否。我们使用像
+			<literal>KERN_ALERT</literal>这样的高优先级，来确保<function>printk()</function>将信息输出到
+			控制台而不是只是添加到日志文件中。 当你编写真正的实用的模块时，你应该针对可能遇到的情况使用合
+			适的优先级。</para>
+
+		</sect2>
+
+</sect1>
+
+
+
+
+
+<sect1><title>编译内核模块</title>
+
+	<indexterm><primary>insmod</primary></indexterm>
+
+	<para>内核模块在用gcc编译时需要使用特定的参数。另外，一些宏同样需要定义。 这是因为在编译成可执行文件和内核模块时，
+	内核头文件起的作用是不同的。 以往的内核版本需要我们去在Makefile中手动设置这些设定。尽管这些Makefile是按目录分层次
+	安排的，但是这其中有许多多余的重复并导致代码树大而难以维护。
+
+	幸运的是，一种称为kbuild的新方法被引入，现在外部的可加载内核模块的编译的方法已经同内核编译统一起来。想了解更多的编
+	译非内核代码树中的模块(就像我们将要编写的)请参考帮助文件<filename>linux/Documentation/kbuild/modules.txt</filename>。
+	</para>
+	
+	<para>现在让我们看一个编译名字叫做<filename>hello-1.c</filename>的模块的简单的Makefile文件：</para>
+
+<example><title>一个基本的Makefile</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/Makefile.1" format="linespecific"/></inlinegraphic></programlisting></example>
+
+	<para>现在你可以通过执行命令<command> make -C /usr/src/linux-`uname -r` SUBDIRS=$PWD modules </command>编译模块。
+	你应该得到同下面类似的屏幕输出：</para>
+
+	<screen>
+[root@pcsenonsrv test_module]# make -C /usr/src/linux-`uname -r` SUBDIRS=$PWD modules
+make: Entering directory `/usr/src/linux-2.6.x
+  CC [M]  /root/test_module/hello-1.o
+  Building modules, stage 2.
+  MODPOST
+  CC      /root/test_module/hello-1.mod.o
+  LD [M]  /root/test_module/hello-1.ko
+make: Leaving directory `/usr/src/linux-2.6.x
+	</screen>
+
+	<para>请注意2.6的内核现在引入一种新的内核模块命名规范：内核模块现在使用<filename>.ko</filename>的文件后缀(代替 
+	以往的<filename>.o</filename>后缀)，这样内核模块就可以同普通的目标文件区别开。这样做的理由是它们包含一个附加的.modinfo段， 那里存放着关于模块的附加信息。我们将马上看到这些信息的好处。</para>
+<para>使用<command>modinfo hello-*.ko</command>来看看它是什么样的信息。
+<screen>
+hostname:~/lkmpg-examples/02-HelloWorld# modinfo hello-1.ko
+filename:       hello-1.ko
+vermagic:       2.6.11 preempt PENTIUMII 4KSTACKS gcc-3.3
+depends:
+</screen>
+<para>到目前为止，没什么惊人的。一旦我们对后面的一个例子，hello-5.ko，使用modinfo，那将会改变。</para>
+<screen>
+hostname:~/lkmpg-examples/02-HelloWorld# modinfo hello-5.ko
+filename:       hello-5.ko
+license:        GPL
+author:         Peter Jay Salzman
+vermagic:       2.6.11 preempt PENTIUMII 4KSTACKS gcc-3.3
+depends:
+parm:           myintArray:An array of integers (array of int)
+parm:           mystring:A character string (charp)
+parm:           mylong:A long integer (long)
+parm:           myint:An integer (int)
+parm:           myshort:A short integer (short)
+hostname:~/lkmpg-examples/02-HelloWorld#
+</screen>
+<para>这里有很多有用的信息去看。报告错误的作者信息，许可证信息，甚至对它接受参数的简短描述。</para>
+
+更详细的文档请参考
+	<filename>linux/Documentation/kbuild/makefiles.txt</filename>。在研究Makefile之前请确认你已经参考了这些文档。
+	</para>
+
+	<para>现在是使用<command>insmod ./hello-1.ko</command>命令加载该模块的时候了(忽略任何你看到的关于内核污染的输出
+	显示，我们将在以后介绍相关内容)。</para>
+
+	<para>
+	所有已经被加载的内核模块都罗列在文件<filename>/proc/modules</filename>中。cat一下这个文件看一下你的模块是否真的
+	成为内核的一部分了。如果是，祝贺你！你现在已经是内核模块的作者了。当你的新鲜劲过去后，使用命令
+	<command>rmmod hello-1</command>.卸载模块。再看一下<filename>/var/log/messages</filename>文件的内容是否有相关的日志内容。
+	</para>
+
+	<para>这儿是另一个练习。看到了在声明
+	<function>init_module()</function>上的注释吗? 改变返回值非零，重新编译再加载，发生了什么？</para>
+
+</sect1>
+
+
+<sect1 id="hello2"><title>Hello World (part 2)</title>
+
+	<indexterm><primary>module_init</primary></indexterm>
+	<indexterm><primary>module_exit</primary></indexterm>
+
+	<para>在内核Linux 2.4中，你可以为你的模块的“开始”和“结束”函数起任意的名字。它们不再必须使用
+	<function>init_module()</function>和<function>cleanup_module()</function>的名字。这可以通过宏
+	<function>module_init()</function>和<function>module_exit()</function>实现。这些宏在头文件<filename
+	role="header">linux/init.h</filename>定义。唯一需要注意的地方是函数必须在宏的使用前定义，否则会有编译
+	错误。下面就是一个例子。</para>
+
+	<indexterm><primary>source file</primary><secondary>hello-2.c</secondary></indexterm>
+
+
+<example><title>hello-2.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/hello-2.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<para>现在我们已经写过两个真正的模块了。添加编译另一个模块的选项十分简单，如下：</para>
+
+
+<example><title>两个内核模块使用的Makefile</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/Makefile.2" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<para>现在让我们来研究一下<filename>linux/drivers/char/Makefile</filename>这个实际中的例子。就如同你看到的，
+	一些被编译进内核 (obj-y)，但是这些obj-m哪里去了呢？对于熟悉shell脚本的人这不难理解。这些在Makefile中随处可见
+	的obj-$(CONFIG_FOO)的指令将会在CONFIG_FOO被设置后扩展为你熟悉的obj-y或obj-m。这其实就是你在使用
+	<command>make menuconfig</command>编译内核时生成的<filename>linux/.config</filename>中设置的东西。
+	</para>
+
+</sect1>
+
+
+
+
+
+<sect1><title>Hello World (part 3): 关于<literal>__init</literal>和<literal>__exit</literal>宏</title>
+
+	<indexterm><primary><function>__init</function></primary></indexterm>
+	<indexterm><primary><function>__initdata</function></primary></indexterm>
+	<indexterm><primary><function>__exit</function></primary></indexterm>
+	<indexterm><primary><function>__initfunction()</function></primary></indexterm>
+
+	<para>这里展示了内核2.2以后引入的一个新特性。注意在负责“初始化”和“清理收尾”的函数定义处的变化。宏
+	<function>__init</function>的使用会在初始化完成后丢弃该函数并收回所占内存，如果该模块被编译进内核，而不是动态加载。
+	</para>
+
+	<para>也有一个宏<function>__initdata</function>同<function>__init</function> 类似，只不过对变量有效。</para>
+
+	<para>宏<function>__exit</function>将忽略“清理收尾”的函数如果该模块被编译进内核。同宏
+	<function>__exit</function>一样，对动态加载模块是无效的。这很容易理解。编译进内核的模块
+	是没有清理收尾工作的, 而动态加载的却需要自己完成这些工作。</para>
+
+	<para>这些宏在头文件<filename role="headerfile">linux/init.h</filename>定义，用来释放内核占用的内存。
+	当你在启动时看到这样的<literal>Freeing unused kernel memory: 236k freed</literal>内核输出，上面的
+	那些正是内核所释放的。</para>
+
+	<indexterm><primary>源代码</primary><secondary>hello-3.c</secondary></indexterm>
+
+
+<example><title>hello-3.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/hello-3.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+</sect1>
+
+
+<sect1><title>Hello World (part 4): 内核模块证书和内核模块文档说明</title>
+
+	<para>如果你在使用2.4或更新的内核，当你加载你的模块时，你也许注意到了这些输出信息：</para>
+	
+	<screen>
+# insmod hello-3.o
+Warning: loading hello-3.o will taint the kernel: no license
+  See http://www.tux.org/lkml/#export-tainted for information about tainted modules
+Hello, world 3
+Module hello-3 loaded, with warnings
+	</screen>
+
+	<indexterm><primary><function>MODULE_LICENSE()</function></primary></indexterm>
+
+	<para>在2.4或更新的内核中，一种识别代码是否在GPL许可下发布的机制被引入，
+	因此人们可以在使用非公开的源代码产品时得到警告。这通过在下一章展示的宏
+	<function>MODULE_LICENSE()</function>当你设置在GPL证书下发布你的代码时，
+	你可以取消这些警告。这种证书机制在头文件<filename role="headerfile">linux/module.h</filename>
+	实现，同时还有一些相关文档信息。
+
+<screen>
+/*
+ * The following license idents are currently accepted as indicating free
+ * software modules
+ *
+ *	"GPL"				[GNU Public License v2 or later]
+ *	"GPL v2"			[GNU Public License v2]
+ *	"GPL and additional rights"	[GNU Public License v2 rights and more]
+ *	"Dual BSD/GPL"			[GNU Public License v2
+ *					 or BSD license choice]
+ *	"Dual MPL/GPL"			[GNU Public License v2
+ *					 or Mozilla license choice]
+ *
+ * The following other idents are available
+ *
+ *	"Proprietary"			[Non free products]
+ *
+ * There are dual licensed components, but when running with Linux it is the
+ * GPL that is relevant so this is a non issue. Similarly LGPL linked with GPL
+ * is a GPL combined work.
+ *
+ * This exists for several reasons
+ * 1.	So modinfo can show license info for users wanting to vet their setup 
+ *	is free
+ * 2.	So the community can ignore bug reports including proprietary modules
+ * 3.	So vendors can do likewise based on their own policies
+ */
+</screen>
+        </para>
+
+	<indexterm><primary><function>MODULE_DESCRIPTION()</function></primary></indexterm>
+	<indexterm><primary><function>MODULE_AUTHOR()</function></primary></indexterm>
+	<indexterm><primary><function>MODULE_SUPPORTED_DEVICE()</function></primary></indexterm>
+
+	<para>类似的，宏<function>MODULE_DESCRIPTION()</function>用来描述模块的用途。
+	宏<function>MODULE_AUTHOR()</function>用来声明模块的作者。宏<function>MODULE_SUPPORTED_DEVICE()</function>
+	声明模块支持的设备。</para>
+
+	<para>这些宏都在头文件<filename role="headerfile">linux/module.h</filename>定义，
+	并且内核本身并不使用这些宏。它们只是用来提供识别信息，可用工具程序像<application>objdump</application>查看。
+	作为一个练习，使用grep从目录<filename role="directory">linux/drivers</filename>看一看这些模块的作者是如何
+	为他们的模块提供识别信息和档案的。</para>
+
+<para>我推荐在<filename role="directory">/usr/src/linux-2.6.x/>目录下使用类似<command>grep -inr MODULE_AUTHOR *</command>的命令。不熟悉命令行工具的人可能喜欢网上那样的方法， 搜索提供LXR做索引的内核源代码树的网站（或在自己的本地机器上安装它）。</para>
+
+<para>使用像emacs或vi那样传统的Unix编辑器的用户将会发现tag文件很有用。它们能够在<filename role="directory">/usr/src/linux-2.6.x/> 下用<command>make tags</command>或<command>make TAGS</command>生成。 一旦你在内核目录树中得到了这种tag文件，你就能把鼠标放到某个函数调用上使用一些组合键直接跳 到函数的定义处。
+	<indexterm><primary>source file</primary><secondary>hello-4.c</secondary></indexterm>
+
+
+<example><title>hello-4.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/hello-4.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+</sect1>
+
+
+
+
+
+<sect1><title>从命令行传递参数给内核模块</title>
+
+	<para>模块也可以从命令行获取参数。但不是通过以前你习惯的<varname>argc</varname>/<varname>argv</varname>。</para>
+
+	<para>要传递参数给模块，首先将获取参数值的变量声明为全局变量。然后使用宏<functioN>MODULE_PARM()</function>(在头文件<filename
+	role="headerfile">linux/module.h</filename>)。运行时，insmod将给变量赋予命令行的参数，如同
+	<command>./insmod mymodule.o myvariable=5</command>。为使代码清晰，变量的声明和宏都应该放在
+	模块代码的开始部分。以下的代码范例也许将比我公认差劲的解说更好。</para>
+
+	<para>宏<function>MODULE_PARM()</function>需要三个参数，变量的名字，其类型和在sysfs中关联文件的权限。整数型既可为通常的<varname>signed</varname>也可为<varname>unsigned</varname>。 如果你想使用整数数组或者字符串，请看<function>module_param_array()</function>和<function>module_param_string()</function>。
+
+	<screen>
+int myint = 3;
+module_param(myint, int, 0);
+	</screen>
+
+	<para>数组同样被支持。但是情况和2.4时代有点不一样了。为了追踪参数的个数，你需要传递一个指向数目变量的指针作为第三个参数。 在你自己，你也可以忽略数目并传递NULL。我们把两种可能性都列出来：</para>
+
+	<screen>
+int myintarray[2];
+module_param_array(myintarray, int, NULL, 0); /* not interested in count */
+int myshortarray[4];
+int count;
+module_parm_array(myshortarray, short, & count, 0); /* put count into "count" variable */
+	</screen>
+
+	<para>将初始值设为缺省使用的IO端口或IO内存是一个不错的作法。如果这些变量有缺省值，则可以进行自动设备检测，
+	否则保持当前设置的值。我们将在后续章节解释清楚相关内容。在这里我只是演示如何向一个模块传递参数。</para>
+
+	<para>最后，还有这样一个宏，<function>MODULE_PARM_DESC()</function>被用来注解该模块可以接收的参数。该宏
+	两个参数：变量名和一个格式自由的对该变量的描述。</para>
+
+	<indexterm><primary>source file</primary><secondary>hello-5.c</secondary></indexterm>
+
+
+<example><title>hello-5.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/hello-5.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+
+	<para>我建议用下面的方法实验你的模块：</para>
+
+	<screen>
+satan# insmod hello-5.o mystring="bebop" mybyte=255 myintArray=-1
+mybyte is an 8 bit integer: 255
+myshort is a short integer: 1
+myint is an integer: 20
+mylong is a long integer: 9999
+mystring is a string: bebop
+myintArray is -1 and 420
+
+satan# rmmod hello-5
+Goodbye, world 5
+
+satan# insmod hello-5.o mystring="supercalifragilisticexpialidocious" \
+> mybyte=256 myintArray=-1,-1
+mybyte is an 8 bit integer: 0
+myshort is a short integer: 1
+myint is an integer: 20
+mylong is a long integer: 9999
+mystring is a string: supercalifragilisticexpialidocious
+myintArray is -1 and -1
+
+satan# rmmod hello-5
+Goodbye, world 5
+
+satan# insmod hello-5.o mylong=hello
+hello-5.o: invalid argument syntax for mylong: 'h'
+</screen>
+
+</sect1>
+
+
+
+
+
+<sect1><title>由多个文件构成的内核模块</title>
+
+	<indexterm><primary>source files</primary><secondary>multiple</secondary></indexterm>
+	<indexterm><primary>__NO_VERSION__</primary></indexterm>
+	<indexterm><primary>module.h</primary></indexterm>
+	<indexterm><primary>version.h</primary></indexterm>
+	<indexterm><primary>kernel\_version</primary></indexterm>
+	<indexterm><primary>ld</primary></indexterm>
+	<indexterm><primary>elf_i386</primary></indexterm>
+
+	<para>有时将模块的源代码分为几个文件是一个明智的选择</para>
+
+	<para>这里是这样的一个模块范例。</para>
+
+	<indexterm><primary>source file</primary><secondary>start.c</secondary></indexterm>
+
+<example><title>start.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/start.c" format="linespecific"/></inlinegraphic></programlisting></example>
+	<para>另一个文件：</para>
+
+	<indexterm><primary>source file</primary><secondary>stop.c</secondary></indexterm>
+
+
+<example><title>stop.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/stop.c" format="linespecific"/></inlinegraphic></programlisting></example>
+
+	<para>最后是该模块的Makefile：</para>
+
+
+<example><title>Makefile</title><programlisting><inlinegraphic fileref="lkmpg-examples/02-HelloWorld/Makefile" format="linespecific"/></inlinegraphic></programlisting></example>
+
+<para>这是目前为止所有例子的完整的Makefile。前五行没有什么特别之处，但是最后一个例子需要两行。 首先，我们为联合的目标文件构造一个名字，其次，我们告诉<command>make</command>什么目标文件是模块的一部分。</para>
+</sect1>
+
+<sect1><title>为已编译的内核编译模块</title>
+
+	<indexterm><primary>source files</primary><secondary>multiple</secondary></indexterm>
+
+	<para>
+	很显然，我们强烈推荐你编译一个新的内核，这样你就可以打开内核中一些有用的排错功能，像强制卸载模块(<literal>MODULE_FORCE_UNLOAD</literal>)：
+	当该选项被打开时，你可以<command>rmmod -f module</command>强制内核卸载一个模块，即使内核认为这是不安全的。该选项可以为你节省不少开发时间。
+	</para>
+
+	<para>
+	但是，你仍然有许多使用一个正在运行中的已编译的内核的理由。例如，你没有编译和安装新内核的权限，或者你不希望重启你的机器来运行新内核。
+	如果你可以毫无阻碍的编译和使用一个新的内核，你可以跳过剩下的内容，权当是一个脚注。
+	</para>
+
+	<para>
+	如果你仅仅是安装了一个新的内核代码树并用它来编译你的模块，当你加载你的模块时，你很可能会得到下面的错误提示：
+	</para>
+	
+	<screen>
+insmod: error inserting 'poet_atkm.ko': -1 Invalid module format
+	</screen>
+	
+	<para>
+	一些不那么神秘的信息被纪录在文件<filename>/var/log/messages</filename>中；
+	</para>
+	
+	<screen>
+Jun  4 22:07:54 localhost kernel: poet_atkm: version magic '2.6.5-1.358custom 686 
+REGPARM 4KSTACKS gcc-3.3' should be '2.6.5-1.358 686 REGPARM 4KSTACKS gcc-3.3'
+	</screen>
+
+	<para>
+	换句话说，内核拒绝加载你的模块因为记载版本号的字符串不符(更确切的说是版本印戳)。版本印戳作为一个静态的字符串存在于内核模块中，以
+	<literal>vermagic:</literal>。 
+	版本信息是在连接阶段从文件<filename>init/vermagic.o</filename>中获得的。
+	查看版本印戳和其它在模块中的一些字符信息，可以使用下面的命令
+	<command>modinfo module.ko</command>：
+	</para>
+
+	<screen>
+[root@pcsenonsrv 02-HelloWorld]# modinfo hello-4.ko 
+license:        GPL
+author:         Peter Jay Salzman &lt;p@dirac.org&gt;
+description:    A sample driver
+vermagic:       2.6.5-1.358 686 REGPARM 4KSTACKS gcc-3.3
+depends:        
+	</screen>
+
+	<para>
+	
+	我们可以借助选项<command>--force-vermagic</command>解决该问题，但这种方法有潜在的危险，所以在成熟的模块中也是不可接受的。
+	解决方法是我们构建一个同我们预先编译好的内核完全相同的编译环境。如何具体实现将是该章后面的内容。
+	</para>
+
+	<para>
+	首先，准备同你目前的内核版本完全一致的内核代码树。然后，找到你的当前内核的编译配置文件。通常它可以在路径
+	<filename>/boot</filename>下找到，使用像<filename>config-2.6.x</filename>的文件名。你可以直接将它拷贝到内核代码树的路径下： 
+	<command> cp /boot/config-`uname -r` /usr/src/linux-`uname -r`/.config</command>。 </para>
+
+	<para>我们可以借助选项<command>--force-vermagic</command>解决该问题，但这种方法有潜在的危险，所以在成熟的模块中也是不可接受的。 解决方法是我们构建一个同我们预先编译好的内核完全相同的编译环境。如何具体实现将是该章后面的内容。 </para>
+
+<para>首先，准备同你目前的内核版本完全一致的内核代码树。然后，找到你的当前内核的编译配置文件。通常它可以在路径 <filename role="directory">/boot>下找到，使用像<filename>config-2.6.x</filename>的文件名。你可以直接将它拷贝到内核代码树的路径下： <command>cp /boot/config-`uname -r` /usr/src/linux-`uname -r`/.config。</command></para>
+
+	<para>让我们再次注意一下先前的错误信息：仔细看的话你会发现，即使使用完全相同的配置文件，版本印戳还是有细小的差异的，但这足以导致
+	模块加载的失败。这其中的差异就是在模块中出现却不在内核中出现的<literal>custom</literal>字符串，是由某些发行版提供的修改过的
+	makefile导致的。检查<filename>/usr/src/linux/Makefile</filename>，确保下面这些特定的版本信息同你使用的内核完全一致：</para>
+
+	<screen>
+VERSION = 2
+PATCHLEVEL = 6
+SUBLEVEL = 5
+EXTRAVERSION = -1.358custom
+...
+	</screen>
+
+	<para>
+	像上面的情况你就需要将<literal>EXTRAVERSION</literal>一项改为<literal>-1.358</literal>。我们的建议是将原始的makefile备份在
+	<filename>/lib/modules/2.6.5-1.358/build</filename>下。
+	一个简单的命令<command>cp /lib/modules/`uname -r`/build/Makefile /usr/src/linux-`uname -r`</command>即可。
+	另外，如果你已经在运行一个由上面的错误的<filename>Makefile</filename>编译的内核，你应该重新执行 
+	<command>make</command>，或直接对应<filename>/lib/modules/2.6.x/build/include/linux/version.h</filename>从文件
+	<filename>/usr/src/linux-2.6.x/include/linux/version.h</filename>修改<literal>UTS_RELEASE</literal>，或用前者覆盖后者的。
+	</para>
+
+	<para>
+	现在，请执行<command>make</command>来更新设置和版本相关的头文件，目标文件：
+	</para>
+	<screen>
+[root@pcsenonsrv linux-2.6.x]# make
+CHK     include/linux/version.h
+UPD     include/linux/version.h
+SYMLINK include/asm -> include/asm-i386
+SPLIT   include/linux/autoconf.h -> include/config/*
+HOSTCC  scripts/basic/fixdep
+HOSTCC  scripts/basic/split-include
+HOSTCC  scripts/basic/docproc
+HOSTCC  scripts/conmakehash
+HOSTCC  scripts/kallsyms
+CC      scripts/empty.o
+...
+	</screen>
+	<para>
+	如果你不是确实想编译一个内核，你可以在<literal>SPLIT</literal>后通过按下<command>CTRL-C</command>中止编译过程。因为此时你需要的文件
+	已经就绪了。现在你可以返回你的模块目录然后编译加载它：此时模块将完全针对你的当前内核编译，加载时也不会由任何错误提示。
+	</para>
+</sect1>
+
+<!--
+vim: tw=128
+-->

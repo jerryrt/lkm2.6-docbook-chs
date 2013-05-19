@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>由多个文件构成的内核模块</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="PREVIOUS"
+TITLE="从命令行传递参数给内核模块"
+HREF="x346.htm"><LINK
+REL="NEXT"
+TITLE="为已编译的内核编译模块"
+HREF="x417.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x346.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 2. Hello World</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x417.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN376"
+>由多个文件构成的内核模块</A
+></H1
+><A
+NAME="AEN378"
+></A
+><A
+NAME="AEN381"
+></A
+><A
+NAME="AEN383"
+></A
+><A
+NAME="AEN385"
+></A
+><A
+NAME="AEN387"
+></A
+><A
+NAME="AEN389"
+></A
+><A
+NAME="AEN391"
+></A
+><P
+>有时将模块的源代码分为几个文件是一个明智的选择</P
+><P
+>这里是这样的一个模块范例。</P
+><A
+NAME="AEN395"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN398"
+></A
+><P
+><B
+>Example 2-8. start.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  start.c - Illustration of multi filed modules
+ */
+
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module */
+
+int init_module(void)
+{
+	printk(KERN_INFO "Hello, world - this is the kernel speaking\n");
+	return 0;
+}</PRE
+></DIV
+><P
+>另一个文件：</P
+><A
+NAME="AEN403"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN406"
+></A
+><P
+><B
+>Example 2-9. stop.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  stop.c - Illustration of multi filed modules
+ */
+
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module  */
+
+void cleanup_module()
+{
+	printk(KERN_INFO "Short is the life of a kernel module\n");
+}</PRE
+></DIV
+><P
+>最后是该模块的Makefile：</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN411"
+></A
+><P
+><B
+>Example 2-10. Makefile</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>obj-m += hello-1.o
+obj-m += hello-2.o
+obj-m += hello-3.o
+obj-m += hello-4.o
+obj-m += hello-5.o
+obj-m += startstop.o
+startstop-objs := start.o stop.o
+
+all:
+       make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+       
+clean:
+       make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean</PRE
+></DIV
+><P
+>这是目前为止所有例子的完整的Makefile。前五行没有什么特别之处，但是最后一个例子需要两行。 首先，我们为联合的目标文件构造一个名字，其次，我们告诉<B
+CLASS="COMMAND"
+>make</B
+>什么目标文件是模块的一部分。</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x346.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x417.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>从命令行传递参数给内核模块</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>为已编译的内核编译模块</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

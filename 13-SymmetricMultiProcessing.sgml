@@ -1,0 +1,37 @@
+<sect1><title>对称多线程处理</title>
+
+	<indexterm><primary>SMP</primary></indexterm>
+	<indexterm><primary>multi-processing</primary></indexterm>
+	<indexterm><primary>symmetrical multi-processing</primary></indexterm>
+	<indexterm><primary>processing</primary><secondary>multi</secondary></indexterm>
+	<indexterm><primary>CPU</primary><secondary>multiple</secondary></indexterm>
+
+	<para>提高性能的最简单也是最便宜的方法是给你的主板加第二个CPU（如果你的主板支持的话）。
+	这可以通过让不同的CPU完成不同的工作（非对称多线程处理）或是相同的工作（对称多线程处理）。
+	实现高效率的非对称的多线程处理需要特殊硬件相关的知识，而对于Linux这样通用操作系统这是不可能的。
+	相对而言，对称多线程处理是较容易实现的。</para>
+
+	<para>我这里所说的相对容易，老实说，还是不容易。在一个对称多线程处理的环境中，
+	多个CPU共享内存，导致的结果是其中一个CPU运行的代码会对别的CPU也产生影响。
+	你不能再确定你代码中第一行中设置的变量在接下来的那行代码中还是那个设置值；
+	其它的CPU可能会趁你不注意已经把它修改了。显然，如果是这样的话，是无法进行任何编程的。
+	</para>
+
+	<para>对于进程层面上的编程这通常不是个问题，因为一个进程通常同一时间只在一个CPU上运行
+	<footnote><para>存在例外，就是线程化的进程，这样的进程可以在多个CPU上同时运行。</para></footnote>。
+	但是，对于内核，就可以被在不同的CPU上的同时运行的不同的进程使用。</para>
+
+	<para>在内核版本2.0.x中，这还不算作什么问题，因为整个内核是一个spinlock
+	<footnote><para>抱歉，我没有找到合适的词语来表达这个单词。这是内核中的一种机制，可以对内核中的关键数据结构进行锁定保护，
+	防止其被破坏。</para></footnote>，这就意味着一旦某个CPU进入内核态，别的CPU将不允许进入内核态。这使Linux的SMP实现很安全
+	<footnote><para>意味着这样的SMP机制使用起来很安全。</para></footnote>，但缺乏效率。</para>
+
+	<para>在内核版本2.2.x以后，多CPU已经允许同时进入内核态。内核模块的作者应该意识到这一点。</para>
+
+</sect1>
+
+
+
+<!--
+vim: tw=128
+-->

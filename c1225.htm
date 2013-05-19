@@ -1,0 +1,394 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Scheduling Tasks</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="让你的键盘指示灯闪起来"
+HREF="x1210.htm"><LINK
+REL="NEXT"
+TITLE="Interrupt Handlers"
+HREF="c1265.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x1210.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1265.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN1225"
+></A
+>Chapter 11. Scheduling Tasks</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN1227"
+>任务调度</A
+></H1
+><A
+NAME="AEN1229"
+></A
+><A
+NAME="AEN1231"
+></A
+><A
+NAME="AEN1234"
+></A
+><A
+NAME="AEN1236"
+></A
+><P
+>经常我们要定期的抽空处理一些“家务活”。如果这样的任务通过一个用户进程完成的，那么我们可以将它放到一个
+	<TT
+CLASS="FILENAME"
+>crontab</TT
+>文件中。如果是通过一个内核模块来完成，那么我们有两种选择。
+	第一种选择是使用<TT
+CLASS="FILENAME"
+>crontab</TT
+>文件，启动一个进程，通过一个系统调用唤醒内核模块，例如打开一个文件。
+	这很没效率。我们通过<TT
+CLASS="FILENAME"
+>crontab</TT
+>生成了一个新进程，读取了一段新的可执行代码进入内存，
+	只是为了唤醒一个已经在内存中的内核模块。</P
+><A
+NAME="AEN1242"
+></A
+><A
+NAME="AEN1244"
+></A
+><A
+NAME="AEN1246"
+></A
+><A
+NAME="AEN1248"
+></A
+><P
+>除了那，我们还可以构造一个函数，它在每次定时中断发生时被调用。实现方法是我们构造一个任务，使用结构体 <SPAN
+CLASS="TYPE"
+>workqueue_struct</SPAN
+>，而该结构体又保存着指向该函数的指针。然后，我们用 <CODE
+CLASS="FUNCTION"
+>queue_delayed_work</CODE
+>把该任务放在叫做<CODE
+CLASS="VARNAME"
+>my_workqueue</CODE
+>任务链表中。 该链表是将在下个定时中断发生时执行的任务列表。因为我们想要使它不停的执行，所以当该函数执行完后我们还要将它放回 <CODE
+CLASS="VARNAME"
+>my_workqueue</CODE
+>任务队列中等待下一次定时中断。</P
+><P
+>这里有一点需要记住。当一个模块用<B
+CLASS="COMMAND"
+>rmmod</B
+>卸载时，它首先会检查引用计数。 如果该计数为零，则调用<CODE
+CLASS="FUNCTION"
+>module_cleanup</CODE
+>。然后，模块就同它的所有函数调用从内存中被删除了。一些东西需要正确地关闭，否则糟糕的事情将会降临。看看下面的代码 是如何用安全的方式完成这项任务的。
+
+	</P
+><A
+NAME="AEN1258"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN1261"
+></A
+><P
+><B
+>Example 11-1. sched.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  sched.c - scheduale a function to be called on every timer interrupt.
+ *
+ *  Copyright (C) 2001 by Peter Jay Salzman
+ */
+
+/* 
+ * The necessary header files 
+ */
+
+/* 
+ * Standard in kernel modules 
+ */
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module */
+#include &#60;linux/proc_fs.h&#62;	/* Necessary because we use the proc fs */
+#include &#60;linux/workqueue.h&#62;	/* We scheduale tasks here */
+#include &#60;linux/sched.h&#62;	/* We need to put ourselves to sleep 
+				   and wake up later */
+#include &#60;linux/init.h&#62;		/* For __init and __exit */
+#include &#60;linux/interrupt.h&#62;	/* For irqreturn_t */
+
+struct proc_dir_entry *Our_Proc_File;
+#define PROC_ENTRY_FILENAME "sched"
+#define MY_WORK_QUEUE_NAME "WQsched.c"
+
+/* 
+ * The number of times the timer interrupt has been called so far 
+ */
+static int TimerIntrpt = 0;
+
+static void intrpt_routine(void *);
+
+static int die = 0;		/* set this to 1 for shutdown */
+
+/* 
+ * The work queue structure for this task, from workqueue.h 
+ */
+static struct workqueue_struct *my_workqueue;
+
+static struct work_struct Task;
+static DECLARE_WORK(Task, intrpt_routine, NULL);
+
+/* 
+ * This function will be called on every timer interrupt. Notice the void*
+ * pointer - task functions can be used for more than one purpose, each time
+ * getting a different parameter.
+ */
+static void intrpt_routine(void *irrelevant)
+{
+	/* 
+	 * Increment the counter 
+	 */
+	TimerIntrpt++;
+
+	/* 
+	 * If cleanup wants us to die
+	 */
+	if (die == 0)
+		queue_delayed_work(my_workqueue, &#38;Task, 100);
+}
+
+/* 
+ * Put data into the proc fs file. 
+ */
+ssize_t
+procfile_read(char *buffer,
+	      char **buffer_location,
+	      off_t offset, int buffer_length, int *eof, void *data)
+{
+	int len;		/* The number of bytes actually used */
+
+	/* 
+	 * It's static so it will still be in memory 
+	 * when we leave this function
+	 */
+	static char my_buffer[80];
+
+	static int count = 1;
+
+	/* 
+	 * We give all of our information in one go, so if the anybody asks us
+	 * if we have more information the answer should always be no.
+	 */
+	if (offset &#62; 0)
+		return 0;
+
+	/* 
+	 * Fill the buffer and get its length 
+	 */
+	len = sprintf(my_buffer, "Timer called %d times so far\n", TimerIntrpt);
+	count++;
+
+	/* 
+	 * Tell the function which called us where the buffer is 
+	 */
+	*buffer_location = my_buffer;
+
+	/* 
+	 * Return the length 
+	 */
+	return len;
+}
+
+/* 
+ * Initialize the module - register the proc file 
+ */
+int __init init_module()
+{
+	/*
+	* Create our /proc file
+	 */
+	Our_Proc_File = create_proc_entry(PROC_ENTRY_FILENAME, 0644, NULL);
+	if (Our_Proc_File == NULL) {
+			remove_proc_entry(PROC_ENTRY_FILENAME, &#38;proc_root);
+			printk(KERN_ALERT "Error: Could not initialize /proc/%s\n",PROC_ENTRY_FILENAME);
+			return -ENOMEM;
+		}
+
+	Our_Proc_File-&#62;read_proc = procfile_read;
+	Our_Proc_File-&#62;owner = THIS_MODULE;
+	Our_Proc_File-&#62;mode = S_IFREG | S_IRUGO;
+	Our_Proc_File-&#62;uid = 0;
+	Our_Proc_File-&#62;gid = 0;
+	Our_Proc_File-&#62;size = 80;
+
+	/*
+	* Put the task in the work_timer task queue, so it will be executed at
+	* next timer interrupt
+	*/
+	my_workqueue = create_workqueue(MY_WORK_QUEUE_NAME);
+	queue_delayed_work(my_workqueue, &#38;Task, 100);
+
+	printk(KERN_INFO "/proc/%s created\n", PROC_ENTRY_FILENAME);
+	
+	return 0;
+}
+
+/* 
+ * Cleanup
+ */
+void __exit cleanup_module()
+{
+	/* 
+	 * Unregister our /proc file 
+	 */
+	remove_proc_entry(PROC_ENTRY_FILENAME, &#38;proc_root);
+	printk(KERN_INFO "/proc/%s removed\n", PROC_ENTRY_FILENAME);
+
+	die = 1;		/* keep intrp_routine from queueing itself */
+	cancel_delayed_work(&#38;Task);	/* no "new ones" */
+	flush_workqueue(my_workqueue);	/* wait till all "old ones" finished */
+	destroy_workqueue(my_workqueue);
+
+	/* 
+	 * Sleep until intrpt_routine is called one last time. This is 
+	 * necessary, because otherwise we'll deallocate the memory holding 
+	 * intrpt_routine and Task while work_timer still references them.
+	 * Notice that here we don't allow signals to interrupt us.
+	 *
+	 * Since WaitQ is now not NULL, this automatically tells the interrupt
+	 * routine it's time to die.
+	 */
+
+}
+
+/* 
+ * some work_queue related functions
+ * are just available to GPL licensed Modules 
+ */
+MODULE_LICENSE("GPL");</PRE
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x1210.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1265.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>让你的键盘指示灯闪起来</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Interrupt Handlers</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

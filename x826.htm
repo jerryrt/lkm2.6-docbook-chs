@@ -1,0 +1,421 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>用标准文件系统管理 /proc 文件</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="The /proc File System"
+HREF="c741.htm"><LINK
+REL="PREVIOUS"
+TITLE="读写 /proc 文件"
+HREF="x805.htm"><LINK
+REL="NEXT"
+TITLE="使用seq_file管理 /proc 文件"
+HREF="x856.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x805.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 5. The /proc File System</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x856.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN826"
+>用标准文件系统管理 /proc 文件</A
+></H1
+><P
+>我们已经知道如何用<TT
+CLASS="FILENAME"
+>/proc</TT
+>接口读写一个<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件。但是也可能使用inode来管理<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件。主要的好处是 使用高级的函数，像<CODE
+CLASS="FUNCTION"
+>permission</CODE
+>。</P
+><P
+>在Linux中有一种标准的注册文件系统的机制。既然每种文件系统都必须有处理文件 索引节点inode和文件操作的函数<A
+NAME="AEN834"
+HREF="#FTN.AEN834"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>, 那就一定有种结构体去存放这些函数的指针。这就是结构体<SPAN
+CLASS="TYPE"
+>struct inode_operations</SPAN
+>， 它其中又包含一个指向结构体<SPAN
+CLASS="TYPE"
+>struct file_operations</SPAN
+>的指针。在<TT
+CLASS="FILENAME"
+> /proc</TT
+> 文件系统中， 当我们需要注册一个新文件时，我们被允许指定哪一个<SPAN
+CLASS="TYPE"
+>struct inode_operations</SPAN
+> 结构体将被使用去访问它。这就是我们将使用的机制，用包含结构体 <SPAN
+CLASS="TYPE"
+>struct inode_operations</SPAN
+>指针的结构体<SPAN
+CLASS="TYPE"
+>struct file_operations</SPAN
+> 来指向我们的<CODE
+CLASS="FUNCTION"
+>procfs_read</CODE
+>和<CODE
+CLASS="FUNCTION"
+>procfs_write</CODE
+>函数。</P
+><P
+>在这儿另一件有趣的事就是<CODE
+CLASS="FUNCTION"
+>module_permission</CODE
+>函数了。该函数在每个进程想要对 /proc文件系统内的文件操作时被调用，它来决定是否操作被允许。 目前它只是对操作和当前用户的UID（可以在<CODE
+CLASS="VARNAME"
+>current</CODE
+>中获得， 一个指向包含当前运行进程信息的结构体的指针）进行判断，但它可以也把其它的东西包括进来， 像还有哪些别的进程在对该文件进行操作，当前的时间，或是我们最后接收到的输入。 </P
+><P
+>需要注意的是“读”和“写”的含义在内核中是反过来的。“读”意味着输出，而“写”意味着输入。 这是从用户的角度来看待问题的。如果一个进程只能从内核的“输出”获得输入， 而内核也是从进程的输出中得到“输入”的。</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN848"
+></A
+><P
+><B
+>Example 5-3. procfs3.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ * procfs3.c - create a "file" in /proc, use the file_operation way
+ *              to manage the file.
+ */
+#include &#60;linux/kernel.h&#62;       /*  We're doing kernel work */
+#include &#60;linux/module.h&#62;       /*  Specifically, a module */
+#include &#60;linux/proc_fs.h&#62;      /*  Necessary because we use proc fs */
+#include &#60;asm/uaccess.h&#62;        /*  for copy_*_user */
+#define PROC_ENTRY_FILENAME     "buffer2k"
+#define PROCFS_MAX_SIZE         2048
+/**
+ * The buffer (2k) for this module
+ *
+ */
+static char procfs_buffer[PROCFS_MAX_SIZE];
+/**
+ * The size of the data hold in the buffer
+ *
+ */
+static unsigned long procfs_buffer_size = 0;
+/**
+ * The structure keeping information about the /proc file
+ *
+ */
+static struct proc_dir_entry *Our_Proc_File;
+/**
+ * This funtion is called when the /proc file is read
+ *
+ */
+static ssize_t procfs_read(struct file *filp,    /* see include/linux/fs.h   */
+                              char *buffer,      /* buffer to fill with data */
+                              size_t length,     /* length of the buffer     */
+                              loff_t * offset)
+{
+        static int finished = 0;
+        /*
+         * We return 0 to indicate end of file, that we have
+         * no more information. Otherwise, processes will
+         * continue to read from us in an endless loop.
+         */
+        if ( finished ) {
+                printk(KERN_INFO "procfs_read: END\n");
+                finished = 0;
+                return 0;
+        }
+        finished = 1;
+        /*
+         * We use put_to_user to copy the string from the kernel's
+         * memory segment to the memory segment of the process
+         * that called us. get_from_user, BTW, is
+         * used for the reverse.
+         */
+        if ( copy_to_user(buffer, procfs_buffer, procfs_buffer_size) ) {
+                return -EFAULT;
+        }
+        printk(KERN_INFO "procfs_read: read %lu bytes\n", procfs_buffer_size);
+        return procfs_buffer_size;       /* Return the number of bytes "read" */
+}
+/*
+ * This function is called when /proc is written
+ */
+static ssize_t
+procfs_write(struct file *file, const char *buffer, size_t len, loff_t * off)
+{
+        if ( len &#62; PROCFS_MAX_SIZE )     {
+                procfs_buffer_size = PROCFS_MAX_SIZE;
+        }
+        else    {
+                procfs_buffer_size = len;
+        }
+        if ( copy_from_user(procfs_buffer, buffer, procfs_buffer_size) ) {
+                return -EFAULT;
+        }
+        printk(KERN_INFO "procfs_write: write %lu bytes\n", procfs_buffer_size);
+        return procfs_buffer_size;
+}
+/*
+ * This function decides whether to allow an operation
+ * (return zero) or not allow it (return a non-zero
+ * which indicates why it is not allowed).
+ *
+ * The operation can be one of the following values:
+ * 0 - Execute (run the "file" - meaningless in our case)
+ * 2 - Write (input to the kernel module)
+ * 4 - Read (output from the kernel module)
+ *
+ * This is the real function that checks file
+ * permissions. The permissions returned by ls -l are
+ * for referece only, and can be overridden here.
+ */
+static int module_permission(struct inode *inode, int op, struct nameidata *foo)
+{
+        /*
+         * We allow everybody to read from our module, but
+         * only root (uid 0) may write to it
+         */
+        if (op == 4 || (op == 2 &#38;&#38; current-&#62;euid == 0))
+                return 0;
+        /*
+         * If it's anything else, access is denied
+         */
+        return -EACCES;
+}
+/*
+ * The file is opened - we don't really care about
+ * that, but it does mean we need to increment the
+ * module's reference count.
+ */
+int procfs_open(struct inode *inode, struct file *file)
+{
+        try_module_get(THIS_MODULE);
+        return 0;
+}
+/*
+ * The file is closed - again, interesting only because
+ * of the reference count.
+ */
+int procfs_close(struct inode *inode, struct file *file)
+{
+        module_put(THIS_MODULE);
+        return 0;                /* success */
+}
+static struct file_operations File_Ops_4_Our_Proc_File = {
+        .read     = procfs_read,
+        .write    = procfs_write,
+        .open     = procfs_open,
+        .release = procfs_close,
+};
+/*
+ * Inode operations for our proc file. We need it so
+ * we'll have some place to specify the file operations
+ * structure we want to use, and the function we use for
+ * permissions. It's also possible to specify functions
+ * to be called for anything else which could be done to
+ * an inode (although we don't bother, we just put
+ * NULL).
+ */
+static struct inode_operations Inode_Ops_4_Our_Proc_File = {
+        .permission = module_permission,        /* check for permissions */
+};
+/*
+ * Module initialization and cleanup
+ */
+int init_module()
+{
+        /* create the /proc file */
+        Our_Proc_File = create_proc_entry(PROC_ENTRY_FILENAME, 0644, NULL);
+        /* check if the /proc file was created successfuly */
+        if (Our_Proc_File == NULL){
+                printk(KERN_ALERT "Error: Could not initialize /proc/%s\n",
+                        PROC_ENTRY_FILENAME);
+                return -ENOMEM;
+        }
+        Our_Proc_File-&#62;owner = THIS_MODULE;
+        Our_Proc_File-&#62;proc_iops = &#38;Inode_Ops_4_Our_Proc_File;
+        Our_Proc_File-&#62;proc_fops = &#38;File_Ops_4_Our_Proc_File;
+        Our_Proc_File-&#62;mode = S_IFREG | S_IRUGO | S_IWUSR;
+        Our_Proc_File-&#62;uid = 0;
+        Our_Proc_File-&#62;gid = 0;
+        Our_Proc_File-&#62;size = 80;
+        printk(KERN_INFO "/proc/%s created\n", PROC_ENTRY_FILENAME);
+        return 0;        /* success */
+}
+void cleanup_module()
+{
+        remove_proc_entry(PROC_ENTRY_FILENAME, &#38;proc_root);
+        printk(KERN_INFO "/proc/%s removed\n", PROC_ENTRY_FILENAME);
+}</PRE
+></DIV
+><P
+>还需要更多的关于procfs的例子？我要提醒你的是：第一，有消息说也许不久procfs将被sysfs取代；第二， 如果你真的很想多了解些procfs，你可以参考路径<TT
+CLASS="FILENAME"
+>linux/Documentation/DocBook/ </TT
+>下的 那些技术性的文档。在内核代码树根目录下使用 <B
+CLASS="COMMAND"
+>make help</B
+> 来获得如何将这些文档转化为你偏好的格式，例如： <B
+CLASS="COMMAND"
+>make htmldocs</B
+> 。如果你要为内核加入一些你的文档，你也应该考虑这样做。</P
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN834"
+HREF="x826.htm#AEN834"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>两者的区别是文件的操作针对具体的，实在的文件， 而文件索引节点的操作是针对文件的引用，像建立文件的连接等。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x805.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x856.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>读写 /proc 文件</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c741.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>使用seq_file管理 /proc 文件</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

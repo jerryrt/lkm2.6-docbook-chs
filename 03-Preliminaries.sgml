@@ -1,0 +1,245 @@
+<sect1><title>内核模块和用户程序的比较</title>
+
+	<sect2><title>内核模块是如何开始和结束的</title>
+
+		<para>用户程序通常从函数<function>main()</function>开始，执行一系列的指令并且
+		当指令执行完成后结束程序。内核模块有一点不同。内核模块要么从函数<function>init_module</function>
+		或是你用宏<function>module_init</function>指定的函数调用开始。这就是内核模块
+		的入口函数。它告诉内核模块提供那些功能扩展并且让内核准备好在需要时调用它。
+		当它完成这些后，该函数就执行结束了。模块在被内核调用前也什么都不做。</para>
+
+		<para>所有的模块或是调用<function>cleanup_module</function>或是你用宏
+		<function>module_exit</function>指定的函数。这是模块的退出函数。它撤消入口函数所做的一切。
+		例如注销入口函数所注册的功能。</para>
+
+		<para>所有的模块都必须有入口函数和退出函数。既然我们有不只一种方法去定义这两个
+		函数，我将努力使用“入口函数”和“退出函数”来描述 它们。但是当我只用<function>init_module</function>
+		和<function>cleanup_module</function>时，我希望你明白我指的是什么。</para>
+
+		</sect2>
+
+
+
+	<sect2><title>模块可调用的函数</title>
+
+		<indexterm><primary>library function</primary></indexterm>
+		<indexterm><primary>system call</primary></indexterm>
+		<indexterm><primary><filename>/proc/kallsyms</filename></primary></indexterm>
+
+		<para>程序员并不总是自己写所有用到的函数。一个常见的基本的例子就是
+		<function>printf()</function>你使用这些C标准库，libc提供的库函数。
+		这些函数(像<function>printf()</function>) 实际上在连接之前并不进入你的程序。
+		在连接时这些函数调用才会指向 你调用的库，从而使你的代码最终可以执行。
+		</para>
+
+		<para>内核模块有所不同。在hello world模块中你也许已经注意到了我们使用的函数
+		<function>printk()</function> 却没有包含标准I/O库。这是因为模块是在insmod加
+		载时才连接的目标文件。那些要用到的函数的符号链接是内核自己提供的。 也就是说，
+		你可以在内核模块中使用的函数只能来自内核本身。如果你对内核提供了哪些函数符号
+		链接感兴趣，看一看文件<filename>/proc/kallsyms</filename>。</para>
+
+		<para>需要注意的一点是库函数和系统调用的区别。库函数是高层的，完全运行在用户空间，
+		为程序员提供调用真正的在幕后 完成实际事务的系统调用的更方便的接口。系统调用在内核
+		态运行并且由内核自己提供。标准C库函数<function>printf()</function>可以被看做是一
+		个通用的输出语句，但它实际做的是将数据转化为符合格式的字符串并且调用系统调用
+		<function>write()</function>输出这些字符串。</para>
+
+		<para> 是否想看一看<function>printf()</function>究竟使用了哪些系统调用? 
+		这很容易，编译下面的代码。</para>
+
+		<screen>
+#include &lt;stdio.h&gt;
+int main(void)
+{ printf("hello"); return 0; }
+		</screen>
+
+		<indexterm><primary>strace</primary></indexterm>
+
+		<para>使用命令<command>gcc -Wall -o hello hello.c</command>编译。用命令
+		<command>strace hello</command>行该可执行文件。是否很惊讶？ 每一行都和一个系统调用相对应。
+		strace<footnote><para>这是一个去跟踪程序究竟在做什么的非常有价值的工具。</para></footnote>
+		是一个非常有用的程序，它可以告诉你程序使用了哪些系统调用和这些系统调用的参数，返回值。 
+		这是一个极有价值的查看程序在干什么的工具。在输出的末尾，你应该看到这样类似的一行
+		<function>write(1, "hello", 5hello)</function>。这就是我们要找的。藏在面具<function>printf()</function>
+		的真实面目。既然绝大多数人使用库函数来对文件I/O进行操作(像 fopen, fputs, fclose)。
+		你可以查看man说明的第二部分使用命令<command>man 2 write</command>.  。man说明的第二部分
+		专门介绍系统调用(像<function>kill()</function>和<function>read()</function>)。
+		man说明的第三部分则专门介绍你可能更熟悉的库函数，
+		(像<function>cosh()</function>和<function>random()</function>)。</para>
+
+		<para>你甚至可以编写代码去覆盖系统调用，正如我们不久要做的。骇客常这样做来为系统安装后门或木马。
+		但你可以用它来完成一些更有益的事，像让内核在每次某人删除文件时输出
+		“ <emphasis>Tee hee, that tickles!</emphasis>” 的信息。</para>
+
+	</sect2>
+
+
+
+	<sect2><title>用户空间和内核空间</title>
+
+		<para>内核全权负责对硬件资源的访问，不管被访问的是显示卡，硬盘，还是内存。
+		用户程序常为这些资源竞争。就如同我在保存这 份文档同时本地数据库正在更新。
+		我的编辑器vim进程和数据库更新进程同时要求访问硬盘。内核必须使这些请求有条不紊的进行，
+		而不是随用户的意愿提供计算机资源。 为方便实现这种机制， <acronym>CPU</acronym>
+		可以在不同的状态运行。不同的状态赋予不同的你对系统操作的自由。Intel 80836 架构有四种状态。
+		Unix只使用了其中 的两种，最高级的状态(操作状态0,即“超级状态”，可以执行任何操作)和最低级的状态
+		(即“用户状态”)。</para>
+
+		<para>回忆以下我们对库函数和系统调用的讨论，一般库函数在用户态执行。
+		库函数调用一个或几个系统调用，而这些系统调用为库函数完成工作，但是在超级状态。
+		一旦系统调用完成工作后系统调用就返回同时程序也返回用户态。
+		</para>
+
+	</sect2>
+
+
+
+	<sect2><title>命名空间</title>
+
+		<indexterm><primary>symbol table</primary></indexterm>
+		<indexterm><primary>namespace pollution</primary></indexterm>
+		<indexterm><primary><filename>/proc/kallsyms</filename></primary></indexterm>
+
+
+		<para>如果你只是写一些短小的C程序，你可为你的变量起一个方便的和易于理解的变量名。
+		但是，如果你写的代码只是 许多其它人写的代码的一部分，你的全局一些就会与其中的全局变量发生冲突。
+		另一个情况是一个程序中有太多的 难以理解的变量名，这又会导致<emphasis>变量命名空间污染</emphasis>
+		在大型项目中，必须努力记住保留的变量名，或为独一无二的命名使用一种统一的方法。
+		</para>
+
+		<para>当编写内核代码时，即使是最小的模块也会同整个内核连接，所以这的确是个令人头痛的问题。
+		最好的解决方法是声明你的变量为<type>static</type>静态的并且为你的符号使用一个定义的很好的前缀。
+		传统中，使用小写字母的内核前缀。如果你不想将所有的东西都声明为<type>static</type>静态的，
+		另一个选择是声明一个<varname>symbol table</varname>（符号表）并向内核注册。我们将在以后讨论。
+		</para>
+
+		<para>文件<filename>/proc/kallsyms</filename>保存着内核知道的所有的符号，你可以访问它们，
+		因为它们是内核代码空间的一部分。
+		</para>
+
+	</sect2>
+
+
+
+	<sect2><title>代码空间</title>
+
+		<indexterm><primary>code space</primary></indexterm>
+		<indexterm><primary>monolithic kernel</primary></indexterm>
+		<indexterm><primary>Hurd</primary></indexterm>
+		<indexterm><primary>Neutrino</primary></indexterm>
+		<indexterm><primary>microkernel</primary></indexterm>
+
+		<para>内存管理是一个非常复杂的课题。O'Reilly的《Understanding The Linux Kernel》绝大部分都在
+		讨论内存管理！我们 并不准备专注于内存管理，但有一些东西还是得知道的。</para>
+
+		<para>如果你没有认真考虑过内存设计缺陷意味着什么，你也许会惊讶的获知一个指针并不指向一个确切
+		的内存区域。当一个进程建立时，内核为它分配一部分确切的实际内存空间并把它交给进程，被进程的
+		代码，变量，堆栈和其它一些计算机学的专家才明白的东西使用<footnote><para>我是物理专业的，
+		而不是主修计算机。</para></footnote>。这些内存从$0$ 开始并可以扩展到需要的地方。这些
+		内存空间并不重叠，所以即使进程访问同一个内存地址，例如<literal>0xbffff978</literal>，
+		真实的物理内存地址其实是不同的。进程实际指向的是一块被分配的内存中以<literal>0xbffff978</literal>
+		为偏移量的一块内存区域。绝大多数情况下，一个进程像普通的"Hello, World"不可以访问别的进程的
+		内存空间，尽管有实现这种机制的方法。 我们将在以后讨论。</para>
+
+		<para>内核自己也有内存空间。既然一个内核模块可以动态的从内核中加载和卸载，它其实是共享内核的
+		内存空间而不是自己拥有 独立的内存空间。因此，一旦你的模块具有内存设计缺陷，内核就是内存设计缺陷了。
+		如果你在错误的覆盖数据，那么你就在 破坏内核的代码。这比现在听起来的还糟。所以尽量小心谨慎。</para>
+
+		<para>顺便提一下，以上我所指出的对于任何单整体内核的操作系统都是真实的<footnote><para>
+		这不同于将所有的内核模块编译进内核，但意思确实是一样的。</para></footnote>。
+		也存在模块化微内核的操作系统，如 GNU Hurd 和 QNX Neutrino。</para>
+
+		</sect2>
+
+
+
+	<sect2><title>设备驱动</title>
+
+		<para>一种内核模块是设备驱动程序，为使用硬件设备像电视卡和串口而编写。
+		在Unix中，任何设备都被当作路径<filename role=directory>/dev</filename>
+		的设备文件处理，并通过这些设备文件提供访问硬件的方法。 设备驱动为用户程序
+		访问硬件设备。举例来说，声卡设备驱动程序<filename>es1370.o</filename>将会把设备文件
+		<filename role="devicefile">/dev/sound</filename>同声卡硬件Ensoniq IS1370联系起来。
+		这样用户程序像 mp3blaster 就可以通过访问设备文件<filename role="devicefile">/dev/sound</filename>
+		运行而不必知道那种声卡硬件安装在系统上。</para>
+
+
+	<sect3><title>Major and Minor Numbers</title>
+
+		<indexterm><primary>major number</primary></indexterm>
+		<indexterm><primary>minor number</primary></indexterm>
+
+		<para>让我们来研究几个设备文件。这里的几个设备文件代表着一块主IDE硬盘上的头三个分区：</para>
+
+		<screen>
+# ls -l /dev/hda[1-3]
+brw-rw----  1 root  disk  3, 1 Jul  5  2000 /dev/hda1
+brw-rw----  1 root  disk  3, 2 Jul  5  2000 /dev/hda2
+brw-rw----  1 root  disk  3, 3 Jul  5  2000 /dev/hda3
+		</screen>
+
+		<para>注意一下被逗号隔开的两列。第一个数字被叫做主设备号，第二个被叫做从设备号。
+		主设备号决定使用何种设备驱动程序。 每种不同的设备都被分配了不同的主设备号；
+		所有具有相同主设备号的设备文件都是被同一个驱动程序控制。上面例子中的 主设备号都为3，
+		表示它们都被同一个驱动程序控制。</para>
+
+		<para>从设备号用来区别驱动程序控制的多个设备。上面例子中的从设备号不相同是因为它们被识别为几个设备。</para>
+
+		<para> 设备被大概的分为两类：字符设备和块设备。区别是块设备有缓冲区，所以它们可以对请求进行优化排序。
+		这对存储设备尤其 重要，因为读写相邻的文件总比读写相隔很远的文件要快。另一个区别是块设备输入和输出
+		都是以数据块为单位的，但是字符设备 就可以自由读写任意量的字节。大部分硬件设备为字符设备，因为它们
+		不需要缓冲区和数据不是按块来传输的。你可以通过命令<command>ls -l</command>输出的头一个字母识别一个
+		设备为何种设备。如果是'b' 就是块设备，如果是'c'就是字符设备。以上你看到的是块设备。这儿还有一些
+		字符设备文件（串口）：</para>
+
+		<screen>
+crw-rw----  1 root  dial 4, 64 Feb 18 23:34 /dev/ttyS0
+crw-r-----  1 root  dial 4, 65 Nov 17 10:26 /dev/ttyS1
+crw-rw----  1 root  dial 4, 66 Jul  5  2000 /dev/ttyS2
+crw-rw----  1 root  dial 4, 67 Jul  5  2000 /dev/ttyS3
+		</screen>
+
+		<para>  如果你想看一下已分配的主设备号都是些什么设备可以看一下文件
+		<filename>/usr/src/linux/Documentation/devices.txt</filename>。</para>
+
+		<indexterm><primary>mknod</primary></indexterm>
+		<indexterm><primary>coffee</primary></indexterm>
+
+		<para>系统安装时，所有的这些设备文件都是由命令<command>mknod</command>建立的。去建立一个新的名叫
+		coffee'，主设备号为<literal>12</literal>和从设备号为<literal>2</literal>的设备文件，只要简单的
+		执行命令<command>mknod /dev/coffee c 12 2</command>。你并不是<emphasis>必须</emphasis>将设备文件放在目录
+		<filename role="directory">/dev</filename>中，这只是一个传统。Linus本人是这样做的，所以你最好也不例外。
+		但是，当你测试一个模块时，在工作目录建立一个设备文件也不错。 只要保证完成后将它放在驱动程序找得到的地方。
+
+</para>
+
+		<para>我还想声明在以上讨论中隐含的几点。当系统访问一个系统文件时， 系统内核只使用主设备号来区别设备类型和决定使用何种内核模块。系统 内核并不需要知道从设备号。内核模块驱动本身才关注从设备号，并用之来 区别其操纵的不同设备。
+		</para>
+
+		<para>另外，我这儿提到的硬件是比那种可以握在手里的PCI卡稍微抽象一点的东西。看一下下面的两个设备文件：
+		</para>
+
+		<screen>
+% ls -l /dev/fd0 /dev/fd0u1680
+brwxrwxrwx   1 root  floppy   2,  0 Jul  5  2000 /dev/fd0
+brw-rw----   1 root  floppy   2, 44 Jul  5  2000 /dev/fd0u1680
+		</screen>
+
+		<para>你现在立即明白这是快设备的设备文件并且它们是有相同的驱动内核模块来操纵
+		（主设备号都为<literal>2</literal>)）。你也许也意识到它们都是你的软盘驱动器，
+		即使你实际上只有一个软盘驱动器。为什么是两个设备文件？因为它们其中的一个代表着
+		你的1.44 MB容量的软驱，另一个代表着你的1.68 MB容量的，被某些人称为“超级格式化”的软驱。
+		这就是一个不同的从设备号代表着相同硬件设备的例子。请清楚的意识到我们提到的硬件有时
+		可能是非常抽象的。</para>
+
+	</sect3>
+
+	</sect2>
+
+</sect1>
+
+
+
+<!--
+vim:textwidth=128
+-->

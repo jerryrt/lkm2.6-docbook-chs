@@ -1,0 +1,389 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Hello World</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="内核模块是如何被调入内核工作的？"
+HREF="x50.htm"><LINK
+REL="NEXT"
+TITLE="编译内核模块"
+HREF="x208.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x50.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="x208.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN146"
+></A
+>Chapter 2. Hello World</H1
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>Table of Contents</B
+></DT
+><DT
+><A
+HREF="c146.htm#AEN148"
+>Hello, World (part 1): 最简单的内核模块</A
+></DT
+><DT
+><A
+HREF="x208.htm"
+>编译内核模块</A
+></DT
+><DT
+><A
+HREF="x241.htm"
+>Hello World (part 2)</A
+></DT
+><DT
+><A
+HREF="x269.htm"
+>Hello World (part 3): 关于<TT
+CLASS="LITERAL"
+>__init</TT
+>和<TT
+CLASS="LITERAL"
+>__exit</TT
+>宏</A
+></DT
+><DT
+><A
+HREF="x303.htm"
+>Hello World (part 4): 内核模块证书和内核模块文档说明</A
+></DT
+><DT
+><A
+HREF="x346.htm"
+>从命令行传递参数给内核模块</A
+></DT
+><DT
+><A
+HREF="x376.htm"
+>由多个文件构成的内核模块</A
+></DT
+><DT
+><A
+HREF="x417.htm"
+>为已编译的内核编译模块</A
+></DT
+></DL
+></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN148"
+>Hello, World (part 1): 最简单的内核模块</A
+></H1
+><P
+>当第一个洞穴程序员在第一台洞穴计算机的墙上上凿写第一个程序时， 这是一个在羚羊皮上输出`Hello, world'的字符串。罗马的编程书籍上是以 `Salut, Mundi'这样的程序开始的。 我不明白人们为什么要破坏这个传统， 但我认为还是不明白为好。我们将从编写一系列的`Hello, world'模块开始， 一步步展示编写内核模块的基础的方方面面。</P
+><P
+>这可能是一个最简单的模块了。先别急着编译它。我们将在下章模块编译的章节介绍相关内容。</P
+><A
+NAME="AEN152"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN155"
+></A
+><P
+><B
+>Example 2-1. hello-1.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*  
+ *  hello-1.c - The simplest kernel module.
+ */
+#include &#60;linux/module.h&#62;	/* Needed by all modules */
+#include &#60;linux/kernel.h&#62;	/* Needed for KERN_ALERT */
+
+int init_module(void)
+{
+	printk(KERN_INFO "Hello world 1.\n");
+
+	/* 
+	 * A non 0 return means init_module failed; module can't be loaded. 
+	 */
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	printk(KERN_INFO "Goodbye world 1.\n");
+}</PRE
+></DIV
+><A
+NAME="AEN159"
+></A
+><A
+NAME="AEN162"
+></A
+><P
+>一个内核模块应该至少包含两个函数。一个“开始”(初始化)的函数被称为<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>
+	还有一个“结束” (干一些收尾清理的工作)的函数被称为<CODE
+CLASS="FUNCTION"
+>cleanup_module()</CODE
+>
+	，当内核模块被rmmod卸载时被执行。实际上，从内核版本2.3.13开始这种情况有些改变。
+	你可以为你的开始和结束函数起任意的名字。 你将在以后学习如何实现这一点<A
+HREF="x241.htm"
+>the Section called <I
+>Hello World (part 2)</I
+></A
+>。
+	实际上，这个新方法时推荐的实现方法。但是，许多人仍然使<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>和
+	<CODE
+CLASS="FUNCTION"
+>cleanup_module()</CODE
+>作为他们的开始和结束函数。</P
+><P
+>一般，<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>要么向内核注册它可以处理的事物，要么用自己的代码
+	替代某个内核函数(代码通常这样做然后再去调用原先的函数代码)。函数
+	<CODE
+CLASS="FUNCTION"
+>cleanup_module()</CODE
+>应该撤消任何<CODE
+CLASS="FUNCTION"
+>init_module()</CODE
+>做的事，从而
+	内核模块可以被安全的卸载。</P
+><P
+>最后，任一个内核模块需要包含<TT
+CLASS="FILENAME"
+>linux/module.h</TT
+>。 我们仅仅需要包含
+	<TT
+CLASS="FILENAME"
+>linux/kernel.h</TT
+>当需要使用
+	<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>记录级别的宏扩展时<CODE
+CLASS="VARNAME"
+>KERN_ALERT</CODE
+>，相关内容将在<A
+HREF="c146.htm#INTRODUCINGPRINTK"
+>the Section called <I
+>介绍<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+></I
+></A
+>中介绍。</P
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="INTRODUCINGPRINTK"
+>介绍<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+></A
+></H2
+><A
+NAME="AEN184"
+></A
+><A
+NAME="AEN187"
+></A
+><P
+>不管你可能怎么想，<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>并不是设计用来同用户交互的，虽然我们在
+			<SPAN
+CLASS="APPLICATION"
+>hello-1</SPAN
+>就是出于这样的目的使用它！它实际上是为内核提供日志功能，
+			记录内核信息或用来给出警告。因此，每个<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>
+			声明都会带一个优先级，就像你看到的<CODE
+CLASS="VARNAME"
+>&lt;1&gt;</CODE
+>和<CODE
+CLASS="VARNAME"
+>KERN_ALERT</CODE
+>
+			那样。内核总共定义了八个优先级的宏， 所以你不必使用晦涩的数字代码，并且你可以从文件
+			<TT
+CLASS="FILENAME"
+>linux/kernel.h</TT
+>查看这些宏和它们的意义。如果你
+			不指明优先级，默认的优先级<TT
+CLASS="LITERAL"
+>DEFAULT_MESSAGE_LOGLEVEL</TT
+>将被采用。</P
+><P
+>阅读一下这些优先级的宏。头文件同时也描述了每个优先级的意义。在实际中，
+			使用宏而不要使用数字，就像<TT
+CLASS="LITERAL"
+>&lt;4&gt;</TT
+>。总是使用宏，就像
+			<TT
+CLASS="LITERAL"
+>KERN_WARNING</TT
+>。</P
+><P
+>当优先级低于<CODE
+CLASS="VARNAME"
+>int console_loglevel</CODE
+>，信息将直接打印在你的终端上。如果同时
+			<B
+CLASS="COMMAND"
+>syslogd</B
+>和<SPAN
+CLASS="APPLICATION"
+>klogd</SPAN
+>都在运行，信息也同时添加在文件
+			<TT
+CLASS="FILENAME"
+>/var/log/messages</TT
+>，而不管是否显示在控制台上与否。我们使用像
+			<TT
+CLASS="LITERAL"
+>KERN_ALERT</TT
+>这样的高优先级，来确保<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>将信息输出到
+			控制台而不是只是添加到日志文件中。 当你编写真正的实用的模块时，你应该针对可能遇到的情况使用合
+			适的优先级。</P
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x50.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="x208.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>内核模块是如何被调入内核工作的？</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>编译内核模块</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

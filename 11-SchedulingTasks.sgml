@@ -1,0 +1,37 @@
+<sect1><title>任务调度</title>
+
+	<indexterm><primary>scheduling tasks</primary></indexterm>
+	<indexterm><primary>tasks</primary><secondary>scheduling</secondary></indexterm>
+	<indexterm><primary>housekeeping</primary></indexterm>
+	<indexterm><primary>crontab</primary></indexterm>
+
+	<para>经常我们要定期的抽空处理一些“家务活”。如果这样的任务通过一个用户进程完成的，那么我们可以将它放到一个
+	<filename>crontab</filename>文件中。如果是通过一个内核模块来完成，那么我们有两种选择。
+	第一种选择是使用<filename>crontab</filename>文件，启动一个进程，通过一个系统调用唤醒内核模块，例如打开一个文件。
+	这很没效率。我们通过<filename>crontab</filename>生成了一个新进程，读取了一段新的可执行代码进入内存，
+	只是为了唤醒一个已经在内存中的内核模块。</para>
+
+	<indexterm><primary>task</primary></indexterm>
+	<indexterm><primary>tq_struct</primary></indexterm>
+	<indexterm><primary>queue_task</primary></indexterm>
+	<indexterm><primary>tq_timer</primary></indexterm>
+
+	<para>
+除了那，我们还可以构造一个函数，它在每次定时中断发生时被调用。实现方法是我们构造一个任务，使用结构体 <type>workqueue_struct</type>，而该结构体又保存着指向该函数的指针。然后，我们用 <function>queue_delayed_work</function>把该任务放在叫做<varname>my_workqueue</varname>任务链表中。 该链表是将在下个定时中断发生时执行的任务列表。因为我们想要使它不停的执行，所以当该函数执行完后我们还要将它放回 <varname>my_workqueue</varname>任务队列中等待下一次定时中断。
+</para>
+
+<para>
+这里有一点需要记住。当一个模块用<command>rmmod</command>卸载时，它首先会检查引用计数。 如果该计数为零，则调用<function>module_cleanup</function>。然后，模块就同它的所有函数调用从内存中被删除了。一些东西需要正确地关闭，否则糟糕的事情将会降临。看看下面的代码 是如何用安全的方式完成这项任务的。
+
+	</para>
+
+
+	<indexterm><primary>source file</primary><secondary>sched.c</secondary></indexterm>
+
+<example><title>sched.c</title><programlisting><inlinegraphic fileref="lkmpg-examples/11-SchedulingTasks/sched.c" format="linespecific"/></inlinegraphic></programlisting></example>
+</sect1>
+
+
+<!--
+vim: tw=128
+-->

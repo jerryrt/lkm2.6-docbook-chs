@@ -1,0 +1,325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>为已编译的内核编译模块</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="Hello World"
+HREF="c146.htm"><LINK
+REL="PREVIOUS"
+TITLE="由多个文件构成的内核模块"
+HREF="x376.htm"><LINK
+REL="NEXT"
+TITLE="Preliminaries"
+HREF="c468.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x376.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 2. Hello World</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c468.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN417"
+>为已编译的内核编译模块</A
+></H1
+><A
+NAME="AEN419"
+></A
+><P
+>	很显然，我们强烈推荐你编译一个新的内核，这样你就可以打开内核中一些有用的排错功能，像强制卸载模块(<TT
+CLASS="LITERAL"
+>MODULE_FORCE_UNLOAD</TT
+>)：
+	当该选项被打开时，你可以<B
+CLASS="COMMAND"
+>rmmod -f module</B
+>强制内核卸载一个模块，即使内核认为这是不安全的。该选项可以为你节省不少开发时间。
+	</P
+><P
+>	但是，你仍然有许多使用一个正在运行中的已编译的内核的理由。例如，你没有编译和安装新内核的权限，或者你不希望重启你的机器来运行新内核。
+	如果你可以毫无阻碍的编译和使用一个新的内核，你可以跳过剩下的内容，权当是一个脚注。
+	</P
+><P
+>	如果你仅仅是安装了一个新的内核代码树并用它来编译你的模块，当你加载你的模块时，你很可能会得到下面的错误提示：
+	</P
+><PRE
+CLASS="SCREEN"
+>insmod: error inserting 'poet_atkm.ko': -1 Invalid module format
+	</PRE
+><P
+>	一些不那么神秘的信息被纪录在文件<TT
+CLASS="FILENAME"
+>/var/log/messages</TT
+>中；
+	</P
+><PRE
+CLASS="SCREEN"
+>Jun  4 22:07:54 localhost kernel: poet_atkm: version magic '2.6.5-1.358custom 686 
+REGPARM 4KSTACKS gcc-3.3' should be '2.6.5-1.358 686 REGPARM 4KSTACKS gcc-3.3'
+	</PRE
+><P
+>	换句话说，内核拒绝加载你的模块因为记载版本号的字符串不符(更确切的说是版本印戳)。版本印戳作为一个静态的字符串存在于内核模块中，以
+	<TT
+CLASS="LITERAL"
+>vermagic:</TT
+>。 
+	版本信息是在连接阶段从文件<TT
+CLASS="FILENAME"
+>init/vermagic.o</TT
+>中获得的。
+	查看版本印戳和其它在模块中的一些字符信息，可以使用下面的命令
+	<B
+CLASS="COMMAND"
+>modinfo module.ko</B
+>：
+	</P
+><PRE
+CLASS="SCREEN"
+>[root@pcsenonsrv 02-HelloWorld]# modinfo hello-4.ko 
+license:        GPL
+author:         Peter Jay Salzman &lt;p@dirac.org&gt;
+description:    A sample driver
+vermagic:       2.6.5-1.358 686 REGPARM 4KSTACKS gcc-3.3
+depends:        
+	</PRE
+><P
+>	
+	我们可以借助选项<B
+CLASS="COMMAND"
+>--force-vermagic</B
+>解决该问题，但这种方法有潜在的危险，所以在成熟的模块中也是不可接受的。
+	解决方法是我们构建一个同我们预先编译好的内核完全相同的编译环境。如何具体实现将是该章后面的内容。
+	</P
+><P
+>	首先，准备同你目前的内核版本完全一致的内核代码树。然后，找到你的当前内核的编译配置文件。通常它可以在路径
+	<TT
+CLASS="FILENAME"
+>/boot</TT
+>下找到，使用像<TT
+CLASS="FILENAME"
+>config-2.6.x</TT
+>的文件名。你可以直接将它拷贝到内核代码树的路径下： 
+	<B
+CLASS="COMMAND"
+> cp /boot/config-`uname -r` /usr/src/linux-`uname -r`/.config</B
+>。 </P
+><P
+>我们可以借助选项<B
+CLASS="COMMAND"
+>--force-vermagic</B
+>解决该问题，但这种方法有潜在的危险，所以在成熟的模块中也是不可接受的。 解决方法是我们构建一个同我们预先编译好的内核完全相同的编译环境。如何具体实现将是该章后面的内容。 </P
+><P
+>首先，准备同你目前的内核版本完全一致的内核代码树。然后，找到你的当前内核的编译配置文件。通常它可以在路径 <TT
+CLASS="FILENAME"
+>/boot&#62;下找到，使用像<TT
+CLASS="FILENAME"
+>config-2.6.x</TT
+>的文件名。你可以直接将它拷贝到内核代码树的路径下： <B
+CLASS="COMMAND"
+>cp /boot/config-`uname -r` /usr/src/linux-`uname -r`/.config。</B
+></TT
+></P
+><P
+>让我们再次注意一下先前的错误信息：仔细看的话你会发现，即使使用完全相同的配置文件，版本印戳还是有细小的差异的，但这足以导致
+	模块加载的失败。这其中的差异就是在模块中出现却不在内核中出现的<TT
+CLASS="LITERAL"
+>custom</TT
+>字符串，是由某些发行版提供的修改过的
+	makefile导致的。检查<TT
+CLASS="FILENAME"
+>/usr/src/linux/Makefile</TT
+>，确保下面这些特定的版本信息同你使用的内核完全一致：</P
+><PRE
+CLASS="SCREEN"
+>VERSION = 2
+PATCHLEVEL = 6
+SUBLEVEL = 5
+EXTRAVERSION = -1.358custom
+...
+	</PRE
+><P
+>	像上面的情况你就需要将<TT
+CLASS="LITERAL"
+>EXTRAVERSION</TT
+>一项改为<TT
+CLASS="LITERAL"
+>-1.358</TT
+>。我们的建议是将原始的makefile备份在
+	<TT
+CLASS="FILENAME"
+>/lib/modules/2.6.5-1.358/build</TT
+>下。
+	一个简单的命令<B
+CLASS="COMMAND"
+>cp /lib/modules/`uname -r`/build/Makefile /usr/src/linux-`uname -r`</B
+>即可。
+	另外，如果你已经在运行一个由上面的错误的<TT
+CLASS="FILENAME"
+>Makefile</TT
+>编译的内核，你应该重新执行 
+	<B
+CLASS="COMMAND"
+>make</B
+>，或直接对应<TT
+CLASS="FILENAME"
+>/lib/modules/2.6.x/build/include/linux/version.h</TT
+>从文件
+	<TT
+CLASS="FILENAME"
+>/usr/src/linux-2.6.x/include/linux/version.h</TT
+>修改<TT
+CLASS="LITERAL"
+>UTS_RELEASE</TT
+>，或用前者覆盖后者的。
+	</P
+><P
+>	现在，请执行<B
+CLASS="COMMAND"
+>make</B
+>来更新设置和版本相关的头文件，目标文件：
+	</P
+><PRE
+CLASS="SCREEN"
+>[root@pcsenonsrv linux-2.6.x]# make
+CHK     include/linux/version.h
+UPD     include/linux/version.h
+SYMLINK include/asm -&#62; include/asm-i386
+SPLIT   include/linux/autoconf.h -&#62; include/config/*
+HOSTCC  scripts/basic/fixdep
+HOSTCC  scripts/basic/split-include
+HOSTCC  scripts/basic/docproc
+HOSTCC  scripts/conmakehash
+HOSTCC  scripts/kallsyms
+CC      scripts/empty.o
+...
+	</PRE
+><P
+>	如果你不是确实想编译一个内核，你可以在<TT
+CLASS="LITERAL"
+>SPLIT</TT
+>后通过按下<B
+CLASS="COMMAND"
+>CTRL-C</B
+>中止编译过程。因为此时你需要的文件
+	已经就绪了。现在你可以返回你的模块目录然后编译加载它：此时模块将完全针对你的当前内核编译，加载时也不会由任何错误提示。
+	</P
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x376.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c468.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>由多个文件构成的内核模块</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c146.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Preliminaries</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

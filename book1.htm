@@ -1,0 +1,742 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>The Linux Kernel Module Programming Guide</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="NEXT"
+TITLE="Foreword"
+HREF="f25.htm"></HEAD
+><BODY
+CLASS="BOOK"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="BOOK"
+><A
+NAME="AEN1"
+></A
+><DIV
+CLASS="TITLEPAGE"
+><H1
+CLASS="TITLE"
+><A
+NAME="AEN2"
+>The Linux Kernel Module Programming Guide</A
+></H1
+><SPAN
+CLASS="COLLAB"
+><SPAN
+CLASS="COLLABNAME"
+>Peter Jay Salzman</SPAN
+><BR></SPAN
+><SPAN
+CLASS="COLLAB"
+><SPAN
+CLASS="COLLABNAME"
+>Michael Burian</SPAN
+><BR></SPAN
+><SPAN
+CLASS="COLLAB"
+><SPAN
+CLASS="COLLABNAME"
+>Ori Pomerantz</SPAN
+><BR></SPAN
+><P
+CLASS="COPYRIGHT"
+>Copyright &copy; 2001 Peter Jay Salzman</P
+><DIV
+CLASS="LEGALNOTICE"
+><P
+></P
+><A
+NAME="AEN16"
+></A
+><P
+>The Linux Kernel Module Programming Guide is a free book; you may reproduce and/or modify it under the terms of the
+			Open Software License, version 1.1.  You can obtain a copy of this license at <A
+HREF="http://opensource.org/licenses/osl.php"
+TARGET="_top"
+>http://opensource.org/licenses/osl.php</A
+>.</P
+><P
+>This book is distributed in the hope it will be useful, but without any warranty, without even the implied warranty
+			of merchantability or fitness for a particular purpose.</P
+><P
+>The author encourages wide distribution of this book for personal or commercial use, provided the above copyright
+			notice remains intact and the method adheres to the provisions of the Open Software License.  In summary, you may copy and
+			distribute this book free of charge or for a profit.  No explicit permission is required from the author for reproduction
+			of this book in any medium, physical or electronic.</P
+><P
+>Derivative works and translations of this document must be placed under the Open Software License, and the original
+			copyright notice must remain intact.  If you have contributed new material to this book, you must make the material and
+			source code available for your revisions.  Please make revisions and updates available directly to the document
+			maintainer, Peter Jay Salzman <CODE
+CLASS="EMAIL"
+>&#60;<A
+HREF="mailto:p@dirac.org"
+>p@dirac.org</A
+>&#62;</CODE
+>.  This will allow for the merging of updates and provide
+			consistent revisions to the Linux community.</P
+><P
+>If you publish or distribute this book commercially, donations, royalties, and/or printed copies are greatly
+			appreciated by the author and the <A
+HREF="http://www.tldp.org"
+TARGET="_top"
+>Linux Documentation Project</A
+> (LDP).
+			Contributing in this way shows your support for free software and the LDP.  If you have questions or comments, please
+			contact the address above.</P
+><P
+></P
+></DIV
+><HR></DIV
+><DIV
+CLASS="TOC"
+><DL
+><DT
+><B
+>Table of Contents</B
+></DT
+><DT
+><A
+HREF="f25.htm"
+>Foreword</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="f25.htm#AEN27"
+>作者声明</A
+></DT
+><DT
+><A
+HREF="x30.htm"
+>版本和注意</A
+></DT
+><DT
+><A
+HREF="x35.htm"
+>感谢</A
+></DT
+><DT
+><A
+HREF="x38.htm"
+>译者注</A
+></DT
+></DL
+></DD
+><DT
+>1. <A
+HREF="c44.htm"
+>Introduction</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c44.htm#AEN46"
+>什么是内核模块？</A
+></DT
+><DT
+><A
+HREF="x50.htm"
+>内核模块是如何被调入内核工作的？</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="x50.htm#AEN126"
+>在开始前</A
+></DT
+></DL
+></DD
+></DL
+></DD
+><DT
+>2. <A
+HREF="c146.htm"
+>Hello World</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c146.htm#AEN148"
+>Hello, World (part 1): 最简单的内核模块</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c146.htm#INTRODUCINGPRINTK"
+>介绍<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+></A
+></DT
+></DL
+></DD
+><DT
+><A
+HREF="x208.htm"
+>编译内核模块</A
+></DT
+><DT
+><A
+HREF="x241.htm"
+>Hello World (part 2)</A
+></DT
+><DT
+><A
+HREF="x269.htm"
+>Hello World (part 3): 关于<TT
+CLASS="LITERAL"
+>__init</TT
+>和<TT
+CLASS="LITERAL"
+>__exit</TT
+>宏</A
+></DT
+><DT
+><A
+HREF="x303.htm"
+>Hello World (part 4): 内核模块证书和内核模块文档说明</A
+></DT
+><DT
+><A
+HREF="x346.htm"
+>从命令行传递参数给内核模块</A
+></DT
+><DT
+><A
+HREF="x376.htm"
+>由多个文件构成的内核模块</A
+></DT
+><DT
+><A
+HREF="x417.htm"
+>为已编译的内核编译模块</A
+></DT
+></DL
+></DD
+><DT
+>3. <A
+HREF="c468.htm"
+>Preliminaries</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c468.htm#AEN470"
+>内核模块和用户程序的比较</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c468.htm#AEN472"
+>内核模块是如何开始和结束的</A
+></DT
+><DT
+><A
+HREF="c468.htm#AEN484"
+>模块可调用的函数</A
+></DT
+><DT
+><A
+HREF="c468.htm#AEN521"
+>用户空间和内核空间</A
+></DT
+><DT
+><A
+HREF="c468.htm#AEN526"
+>命名空间</A
+></DT
+><DT
+><A
+HREF="c468.htm#AEN543"
+>代码空间</A
+></DT
+><DT
+><A
+HREF="c468.htm#AEN565"
+>设备驱动</A
+></DT
+></DL
+></DD
+></DL
+></DD
+><DT
+>4. <A
+HREF="c603.htm"
+>Character Device Files</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c603.htm#AEN605"
+>字符设备文件</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c603.htm#AEN610"
+>关于<SPAN
+CLASS="TYPE"
+>file_operations</SPAN
+>结构体</A
+></DT
+><DT
+><A
+HREF="c603.htm#AEN635"
+>关于<SPAN
+CLASS="TYPE"
+>file</SPAN
+>结构体</A
+></DT
+><DT
+><A
+HREF="c603.htm#AEN658"
+>注册一个设备</A
+></DT
+><DT
+><A
+HREF="c603.htm#AEN686"
+>注销一个设备</A
+></DT
+><DT
+><A
+HREF="c603.htm#AEN713"
+>chardev.c</A
+></DT
+><DT
+><A
+HREF="c603.htm#AEN723"
+>为多个版本的内核编写内核模块</A
+></DT
+></DL
+></DD
+></DL
+></DD
+><DT
+>5. <A
+HREF="c741.htm"
+>The /proc File System</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c741.htm#AEN743"
+>关于 /proc 文件系统</A
+></DT
+><DT
+><A
+HREF="x805.htm"
+>读写 /proc 文件</A
+></DT
+><DT
+><A
+HREF="x826.htm"
+>用标准文件系统管理 /proc 文件</A
+></DT
+><DT
+><A
+HREF="x856.htm"
+>使用seq_file管理 /proc 文件</A
+></DT
+></DL
+></DD
+><DT
+>6. <A
+HREF="c903.htm"
+>Using /proc For Input</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c903.htm#AEN905"
+>使用 /proc 作为输入</A
+></DT
+></DL
+></DD
+><DT
+>7. <A
+HREF="c914.htm"
+>Talking To Device Files</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c914.htm#AEN916"
+>与设备文件对话 (writes and IOCTLs)</A
+></DT
+></DL
+></DD
+><DT
+>8. <A
+HREF="c998.htm"
+>System Calls</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c998.htm#AEN1000"
+>系统调用</A
+></DT
+></DL
+></DD
+><DT
+>9. <A
+HREF="c1068.htm"
+>Blocking Processes</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1068.htm#AEN1070"
+>阻塞进程</A
+></DT
+></DL
+></DD
+><DT
+>10. <A
+HREF="c1175.htm"
+>Replacing Printks</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1175.htm#AEN1177"
+>替换<CODE
+CLASS="FUNCTION"
+>printk</CODE
+></A
+></DT
+><DT
+><A
+HREF="x1210.htm"
+>让你的键盘指示灯闪起来</A
+></DT
+></DL
+></DD
+><DT
+>11. <A
+HREF="c1225.htm"
+>Scheduling Tasks</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1225.htm#AEN1227"
+>任务调度</A
+></DT
+></DL
+></DD
+><DT
+>12. <A
+HREF="c1265.htm"
+>Interrupt Handlers</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1265.htm#AEN1267"
+>Interrupt Handlers</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1265.htm#AEN1274"
+>中断处理程序</A
+></DT
+><DT
+><A
+HREF="c1265.htm#KEYBOARD"
+>Intel架构中的键盘</A
+></DT
+></DL
+></DD
+></DL
+></DD
+><DT
+>13. <A
+HREF="c1346.htm"
+>Symmetric Multi Processing</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1346.htm#AEN1348"
+>对称多线程处理</A
+></DT
+></DL
+></DD
+><DT
+>14. <A
+HREF="c1373.htm"
+>Common Pitfalls</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="c1373.htm#AEN1375"
+>注意</A
+></DT
+></DL
+></DD
+><DT
+>A. <A
+HREF="a1410.htm"
+>Changes: 2.0 To 2.2</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="a1410.htm#AEN1412"
+>从2.4到2.6的变化</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="a1410.htm#AEN1419"
+>从2.4到2.6的变化</A
+></DT
+></DL
+></DD
+></DL
+></DD
+><DT
+>B. <A
+HREF="a1423.htm"
+>Where To Go From Here</A
+></DT
+><DD
+><DL
+><DT
+><A
+HREF="a1423.htm#AEN1425"
+>为什么这样写？</A
+></DT
+></DL
+></DD
+><DT
+><A
+HREF="i1433.htm"
+>Index</A
+></DT
+></DL
+></DIV
+><DIV
+CLASS="LOT"
+><DL
+CLASS="LOT"
+><DT
+><B
+>List of Examples</B
+></DT
+><DT
+>2-1. <A
+HREF="c146.htm#AEN155"
+>hello-1.c</A
+></DT
+><DT
+>2-2. <A
+HREF="x208.htm#AEN216"
+>一个基本的Makefile</A
+></DT
+><DT
+>2-3. <A
+HREF="x241.htm#AEN256"
+>hello-2.c</A
+></DT
+><DT
+>2-4. <A
+HREF="x241.htm#AEN261"
+>两个内核模块使用的Makefile</A
+></DT
+><DT
+>2-5. <A
+HREF="x269.htm#AEN299"
+>hello-3.c</A
+></DT
+><DT
+>2-6. <A
+HREF="x303.htm#AEN342"
+>hello-4.c</A
+></DT
+><DT
+>2-7. <A
+HREF="x346.htm#AEN370"
+>hello-5.c</A
+></DT
+><DT
+>2-8. <A
+HREF="x376.htm#AEN398"
+>start.c</A
+></DT
+><DT
+>2-9. <A
+HREF="x376.htm#AEN406"
+>stop.c</A
+></DT
+><DT
+>2-10. <A
+HREF="x376.htm#AEN411"
+>Makefile</A
+></DT
+><DT
+>4-1. <A
+HREF="c603.htm#AEN719"
+>chardev.c</A
+></DT
+><DT
+>5-1. <A
+HREF="c741.htm#AEN801"
+>procfs1.c</A
+></DT
+><DT
+>5-2. <A
+HREF="x805.htm#AEN822"
+>procfs2.c</A
+></DT
+><DT
+>5-3. <A
+HREF="x826.htm#AEN848"
+>procfs3.c</A
+></DT
+><DT
+>5-4. <A
+HREF="x856.htm#AEN894"
+>procfs4.c</A
+></DT
+><DT
+>7-1. <A
+HREF="c914.htm#AEN973"
+>chardev.c</A
+></DT
+><DT
+>7-2. <A
+HREF="c914.htm#AEN981"
+>chardev.h</A
+></DT
+><DT
+>7-3. <A
+HREF="c914.htm#AEN994"
+>ioctl.c</A
+></DT
+><DT
+>8-1. <A
+HREF="c998.htm#AEN1064"
+>syscall.c</A
+></DT
+><DT
+>9-1. <A
+HREF="c1068.htm#AEN1167"
+>sleep.c</A
+></DT
+><DT
+>9-2. <A
+HREF="c1068.htm#AEN1171"
+>cat_noblock.c</A
+></DT
+><DT
+>10-1. <A
+HREF="c1175.htm#AEN1206"
+>print_string.c</A
+></DT
+><DT
+>10-2. <A
+HREF="x1210.htm#AEN1217"
+>kbleds.c</A
+></DT
+><DT
+>11-1. <A
+HREF="c1225.htm#AEN1261"
+>sched.c</A
+></DT
+><DT
+>12-1. <A
+HREF="c1265.htm#AEN1342"
+>intrpt.c</A
+></DT
+></DL
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="f25.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Foreword</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

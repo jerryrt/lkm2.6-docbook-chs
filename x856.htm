@@ -1,0 +1,388 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>使用seq_file管理 /proc 文件</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="UP"
+TITLE="The /proc File System"
+HREF="c741.htm"><LINK
+REL="PREVIOUS"
+TITLE="用标准文件系统管理 /proc 文件"
+HREF="x826.htm"><LINK
+REL="NEXT"
+TITLE="Using /proc For Input"
+HREF="c903.htm"></HEAD
+><BODY
+CLASS="SECT1"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="x826.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+>Chapter 5. The /proc File System</TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c903.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN856"
+>使用seq_file管理 /proc 文件</A
+></H1
+><P
+>正如我们看到的，写入一个<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件可能太“复杂”了。所以为了帮助人们写<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件，有一个名为<CODE
+CLASS="FUNCTION"
+>seq_file</CODE
+>的 <CODE
+CLASS="VARNAME"
+>API</CODE
+>帮助人们格式化<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件作为输出。它是基于序列的，由三个函数组成：<CODE
+CLASS="FUNCTION"
+>start()</CODE
+> ，<CODE
+CLASS="FUNCTION"
+>next()</CODE
+>和<CODE
+CLASS="FUNCTION"
+>stop()</CODE
+>。 当用户读取<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件时，<CODE
+CLASS="FUNCTION"
+>seq_file</CODE
+> <CODE
+CLASS="VARNAME"
+>API</CODE
+>开启一个序列。</P
+><P
+>一个序列以调用<CODE
+CLASS="FUNCTION"
+>start()</CODE
+>函数开始。如果返回一个非<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>，函数 <CODE
+CLASS="FUNCTION"
+>next()</CODE
+>被调用。这个函数是一个迭代程序，目标是遍历所有数据。 每次调用<CODE
+CLASS="FUNCTION"
+>next()</CODE
+>时，函数<CODE
+CLASS="FUNCTION"
+>show()</CODE
+> 也会被调用。它在用户读取的缓冲区中写入数据。函数<CODE
+CLASS="FUNCTION"
+>next()</CODE
+>被调用直到 它返回<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>。当<CODE
+CLASS="FUNCTION"
+>next()</CODE
+>返回<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>时，函数<CODE
+CLASS="FUNCTION"
+>stop()</CODE
+> 接着被调用，序列结束。</P
+><P
+>当心：当一个序列结束时，另一个又被开启。这就是说在函数<CODE
+CLASS="FUNCTION"
+>stop()</CODE
+> 的末尾，<CODE
+CLASS="FUNCTION"
+>start()</CODE
+>函数被再次调用。这个循环在<CODE
+CLASS="FUNCTION"
+>start()</CODE
+> 函数返回<CODE
+CLASS="VARNAME"
+>NULL</CODE
+>时终止。你可以在下图中看到这个的图解。</P
+><DIV
+CLASS="MEDIAOBJECT"
+><P
+><IMG
+SRC="seq_file.png"></P
+></DIV
+><P
+><CODE
+CLASS="FUNCTION"
+>seq_file</CODE
+>为<CODE
+CLASS="FUNCTION"
+>file_operations</CODE
+>提供了基本的函数，比如<CODE
+CLASS="FUNCTION"
+>seq_read</CODE
+>， <CODE
+CLASS="FUNCTION"
+>seq_lseek</CODE
+>和其它一些。当然了，你也可以使用前面例子中同样的方法。</P
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN894"
+></A
+><P
+><B
+>Example 5-4. procfs4.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/**
+ * procfs4.c - create a "file" in /proc
+ *      This program uses the seq_file library to manage the /proc file.
+ *
+ */
+#include &#60;linux/kernel.h&#62;        /* We're doing kernel work */
+#include &#60;linux/module.h&#62;        /* Specifically, a module */
+#include &#60;linux/proc_fs.h&#62;       /* Necessary because we use proc fs */
+#include &#60;linux/seq_file.h&#62;      /* for seq_file */
+#define PROC_NAME       "iter"
+MODULE_AUTHOR("Philippe Reynes");
+MODULE_LICENSE("GPL");
+/**
+ * This function is called at the beginning of a sequence.
+ * ie, when:
+ *      - the /proc file is read (first time)
+ *      - after the function stop (end of sequence)
+ *
+ */
+static void *my_seq_start(struct seq_file *s, loff_t *pos)
+{
+        static unsigned long counter = 0;
+        /* beginning a new sequence ? */
+        if ( *pos == 0 )
+        {
+                /* yes =&#62; return a non null value to begin the sequence */
+                return &#38;counter;
+        }
+        else
+        {
+                /* no =&#62; it's the end of the sequence, return end to stop reading */
+                *pos = 0;
+                return NULL;
+        }
+}
+/**
+ * This function is called after the beginning of a sequence.
+ * It's called untill the return is NULL (this ends the sequence).
+ *
+ */
+static void *my_seq_next(struct seq_file *s, void *v, loff_t *pos)
+{
+        unsigned long *tmp_v = (unsigned long *)v;
+        (*tmp_v)++;
+        (*pos)++;
+        return NULL;
+}
+/**
+ * This function is called at the end of a sequence
+ *
+ */
+static void my_seq_stop(struct seq_file *s, void *v)
+{
+        /* nothing to do, we use a static value in start() */
+}
+
+/**
+ * This function is called for each "step" of a sequence
+ *
+ */
+static int my_seq_show(struct seq_file *s, void *v)
+{
+        loff_t *spos = (loff_t *) v;
+        seq_printf(s, "%Ld\n", *spos);
+        return 0;
+}
+/**
+ * This structure gather "function" to manage the sequence
+ *
+ */
+static struct seq_operations my_seq_ops = {
+        .start = my_seq_start,
+        .next = my_seq_next,
+        .stop = my_seq_stop,
+        .show = my_seq_show
+};
+/**
+ * This function is called when the /proc file is open.
+ *
+ */
+static int my_open(struct inode *inode, struct file *file)
+{
+        return seq_open(file, &#38;my_seq_ops);
+};
+/**
+ * This structure gather "function" that manage the /proc file
+ *
+ */
+static struct file_operations my_file_ops = {
+        .owner    = THIS_MODULE,
+        .open     = my_open,
+        .read     = seq_read,
+        .llseek = seq_lseek,
+        .release = seq_release
+};
+/**
+ * This function is called when the module is loaded
+ *
+ */
+int init_module(void)
+{
+        struct proc_dir_entry *entry;
+        entry = create_proc_entry(PROC_NAME, 0, NULL);
+        if (entry) {
+                entry-&#62;proc_fops = &#38;my_file_ops;
+        }
+        return 0;
+}
+/**
+ * This function is called when the module is unloaded.
+ *
+ */
+void cleanup_module(void)
+{
+        remove_proc_entry(PROC_NAME, NULL);
+}</PRE
+></DIV
+><P
+>如果你想要更多信息，你可以查看下面的网页：</P
+><A
+HREF="http://lwn.net/Articles/22355/"
+TARGET="_top"
+>&#13;<A
+HREF="http://www.kernelnewbies.org/documents/seq_file_howto.txt"
+TARGET="_top"
+>&#13;<P
+>你也可以阅读Linux内核中<TT
+CLASS="FILENAME"
+>fs/seq_file.c</TT
+>的源代码。</P
+></A
+></A
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="x826.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c903.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>用标准文件系统管理 /proc 文件</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="c741.htm"
+ACCESSKEY="U"
+>Up</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Using /proc For Input</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

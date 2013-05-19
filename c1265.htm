@@ -1,0 +1,519 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>Interrupt Handlers</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="Scheduling Tasks"
+HREF="c1225.htm"><LINK
+REL="NEXT"
+TITLE="Symmetric Multi Processing"
+HREF="c1346.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c1225.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1346.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="INTERRUPTHANDLERS"
+></A
+>Chapter 12. Interrupt Handlers</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN1267"
+>Interrupt Handlers</A
+></H1
+><A
+NAME="AEN1269"
+></A
+><A
+NAME="AEN1271"
+></A
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="AEN1274"
+>中断处理程序</A
+></H2
+><P
+>除了刚结束的那章，我们目前在内核中所做的每件事都只不过是对某个请求的进程的响应，
+		要么是对某个特殊的文件的处理，要么是发送一个<CODE
+CLASS="FUNCTION"
+>ioctl()</CODE
+>，要么是调用一个系统调用。 但是内核的工作不仅仅是响应某个进程的请求。还有另外一项非常重要的工作就是和连接到机器上的硬件进行对话。</P
+><P
+>CPU和硬件之间的交互大致可分为两种。第一种是CPU发送命令给硬件，第二种就是硬件要返回某些信息给CPU。 后面的那种，又叫做中断，较难实现，因为它要在硬件适宜时与其打交道，而不是CPU。硬件设备通常只有很小的RAM， 如果你不及时的读取里面的信息，这些信息就会丢失。</P
+><P
+>在Linux中，硬件中断被叫作IRQ（<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>I</I
+></SPAN
+>nterrupt
+		<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>R</I
+></SPAN
+>e<SPAN
+CLASS="emphasis"
+><I
+CLASS="EMPHASIS"
+>q</I
+></SPAN
+>uests，中断请求）<A
+NAME="AEN1283"
+HREF="#FTN.AEN1283"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+>。有两种硬件中断，短中断和长中断。短中断占用的时间非常短，在这段时间内，
+		整个系统被阻塞，任何其它中断都不会处理。长中断占用的时间相对较长，在此期间，可能会有别的中断发生请求处理
+		（不是相同设备发出的中断）。可能的话，尽量将中断声明为长中断。</P
+><A
+NAME="AEN1286"
+></A
+><P
+>当CPU接收到一个中断时，它停止正在处理的一切事务（除非它在处理另一个更重要的中断，
+		在这种情况下它只会处理完这个重要的中断才会回来处理新产生的中断），
+		将运行中的那些参数压入栈中然后调用中断处理程序。这同时意味着中断处理程序本身也有一些限制，
+		因为此时系统的状态并不确定。解决的办法是让中断处理程序尽快的完成它的事务，通常是从硬件读取信息和向硬件发送指令，
+		然后安排下一次接收信息的相关处理（这被称为<SPAN
+CLASS="QUOTE"
+>"bottom half"</SPAN
+>
+		<A
+NAME="AEN1290"
+HREF="#FTN.AEN1290"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+>
+		)，然后返回。内核确保被安排的事务被尽快的执行。当被执行时，在内核模块中允许的操作就是被允许的。</P
+><A
+NAME="AEN1296"
+></A
+><A
+NAME="AEN1298"
+></A
+><A
+NAME="AEN1300"
+></A
+><A
+NAME="AEN1302"
+></A
+><P
+>实现的方法是调用<CODE
+CLASS="FUNCTION"
+>request_irq()</CODE
+>函数，当接受到相应的IRQ时
+		（共有15种中断，在Intel架构平台上再加上1种用于串连中断控制器的中断）去调用你的中断
+		处理程序。该函数接收IRQ号，要调用的处理IRQ函数的名称，中断请求的类别标志位，文件
+		<TT
+CLASS="FILENAME"
+>/proc/interrupts</TT
+>中声明的设备的名字，和传递给中断处理程序的参数。中断请求的类别标志位可以为
+		<CODE
+CLASS="PARAMETER"
+>SA_SHIRQ</CODE
+>来告诉系统你希望与其它中断处理程序共享该中断号
+		（这通常是由于一些设备共用相同的IRQ号），也可以为<CODE
+CLASS="PARAMETER"
+>SA_INTERRUPT</CODE
+>
+		来告诉系统这是一个快速中断，这种情况下该函数只有在该IRQ空闲时才会成功返回，或者同时你又决定共享该IQR。</P
+><A
+NAME="AEN1309"
+></A
+><A
+NAME="AEN1311"
+></A
+><A
+NAME="AEN1313"
+></A
+><A
+NAME="AEN1315"
+></A
+><P
+>然后，在中断处理程序内部，我们与硬件对话，接着使用带<CODE
+CLASS="FUNCTION"
+>tq_immediate()</CODE
+>和
+		<CODE
+CLASS="FUNCTION"
+>mark_bh(BH_IMMEDIATE)</CODE
+>的
+		<CODE
+CLASS="FUNCTION"
+>queue_task_irq()</CODE
+>去对bottom half队列进行调度。task
+		</P
+></DIV
+><DIV
+CLASS="SECT2"
+><H2
+CLASS="SECT2"
+><A
+NAME="KEYBOARD"
+>Intel架构中的键盘</A
+></H2
+><A
+NAME="AEN1323"
+></A
+><A
+NAME="AEN1325"
+></A
+><P
+>剩余的这部分是只适用Intel架构的。如果你不使用Intel架构的平台，它们将不会工作，不要去尝试编译以下的代码。</P
+><P
+>在写这章的事例代码时，我遇到了一些困难。一方面，我需要一个可以得到实际有意义结果的，
+		能在各种平台上工作的例子。另一方面，内核中已经包括了各种设备驱动，并且这些驱动将无法和我的例子共存。
+		我找到的解决办法是为键盘中断写点东西，当然首先禁用普通的键盘中断。因为该中断在内核中定义为一个静态连接的符号
+		（见<TT
+CLASS="FILENAME"
+>drivers/char/keyboard.c</TT
+>)），我们没有办法恢复。所以在
+		<KBD
+CLASS="USERINPUT"
+>insmod</KBD
+>前，如果你爱惜你的机器，新打开一个终端运行<KBD
+CLASS="USERINPUT"
+>sleep 120
+		; reboot</KBD
+>。</P
+><A
+NAME="AEN1333"
+></A
+><P
+>该代码将自己绑定在IRQ 1， 也就是Intel架构中键盘的IRQ。然后，当接收到一个键盘中断请求时，它读取键盘的状态（那就是
+		<KBD
+CLASS="USERINPUT"
+>inb(0x64)</KBD
+>的目的）和扫描码，也就是键盘返回的键值。然后，一旦内核认为这是符合条件的，它运行
+		<CODE
+CLASS="FUNCTION"
+>got_char</CODE
+>去给出操作的键（扫描码的头7个位）和是按下键（扫描码的第8位为0）
+		还是弹起键（扫描码的第8位为1）。</P
+><A
+NAME="AEN1338"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN1342"
+></A
+><P
+><B
+>Example 12-1. intrpt.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  intrpt.c - An interrupt handler.
+ *
+ *  Copyright (C) 2001 by Peter Jay Salzman
+ */
+
+/* 
+ * The necessary header files 
+ */
+
+/* 
+ * Standard in kernel modules 
+ */
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module */
+#include &#60;linux/sched.h&#62;
+#include &#60;linux/workqueue.h&#62;
+#include &#60;linux/interrupt.h&#62;	/* We want an interrupt */
+#include &#60;asm/io.h&#62;
+
+#define MY_WORK_QUEUE_NAME "WQsched.c"
+
+static struct workqueue_struct *my_workqueue;
+
+/* 
+ * This will get called by the kernel as soon as it's safe
+ * to do everything normally allowed by kernel modules.
+ */
+static void got_char(void *scancode)
+{
+	printk("Scan Code %x %s.\n",
+	       (int)*((char *)scancode) &#38; 0x7F,
+	       *((char *)scancode) &#38; 0x80 ? "Released" : "Pressed");
+}
+
+/* 
+ * This function services keyboard interrupts. It reads the relevant
+ * information from the keyboard and then puts the non time critical
+ * part into the work queue. This will be run when the kernel considers it safe.
+ */
+irqreturn_t irq_handler(int irq, void *dev_id, struct pt_regs *regs)
+{
+	/* 
+	 * This variables are static because they need to be
+	 * accessible (through pointers) to the bottom half routine.
+	 */
+	static int initialised = 0;
+	static unsigned char scancode;
+	static struct work_struct task;
+	unsigned char status;
+
+	/* 
+	 * Read keyboard status
+	 */
+	status = inb(0x64);
+	scancode = inb(0x60);
+
+	if (initialised == 0) {
+		INIT_WORK(&#38;task, got_char, &#38;scancode);
+		initialised = 1;
+	} else {
+		PREPARE_WORK(&#38;task, got_char, &#38;scancode);
+	}
+
+	queue_work(my_workqueue, &#38;task);
+
+	return IRQ_HANDLED;
+}
+
+/* 
+ * Initialize the module - register the IRQ handler 
+ */
+int init_module()
+{
+	my_workqueue = create_workqueue(MY_WORK_QUEUE_NAME);
+
+	/* 
+	 * Since the keyboard handler won't co-exist with another handler,
+	 * such as us, we have to disable it (free its IRQ) before we do
+	 * anything.  Since we don't know where it is, there's no way to
+	 * reinstate it later - so the computer will have to be rebooted
+	 * when we're done.
+	 */
+	free_irq(1, NULL);
+
+	/* 
+	 * Request IRQ 1, the keyboard IRQ, to go to our irq_handler.
+	 * SA_SHIRQ means we're willing to have othe handlers on this IRQ.
+	 * SA_INTERRUPT can be used to make the handler into a fast interrupt.
+	 */
+	return request_irq(1,	/* The number of the keyboard IRQ on PCs */
+			   irq_handler,	/* our handler */
+			   SA_SHIRQ, "test_keyboard_irq_handler",
+			   (void *)(irq_handler));
+}
+
+/* 
+ * Cleanup 
+ */
+void cleanup_module()
+{
+	/* 
+	 * This is only here for completeness. It's totally irrelevant, since
+	 * we don't have a way to restore the normal keyboard interrupt so the
+	 * computer is completely useless and has to be rebooted.
+	 */
+	free_irq(1, NULL);
+}
+
+/* 
+ * some work_queue related functions are just available to GPL licensed Modules
+ */
+MODULE_LICENSE("GPL");</PRE
+></DIV
+></DIV
+></DIV
+></DIV
+><H3
+CLASS="FOOTNOTES"
+>Notes</H3
+><TABLE
+BORDER="0"
+CLASS="FOOTNOTES"
+WIDTH="100%"
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN1283"
+HREF="c1265.htm#AEN1283"
+><SPAN
+CLASS="footnote"
+>[1]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这是Linux起源的Intel架构中的标准的起名方法。
+		</P
+><P
+></P
+></TD
+></TR
+><TR
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="5%"
+><A
+NAME="FTN.AEN1290"
+HREF="c1265.htm#AEN1290"
+><SPAN
+CLASS="footnote"
+>[2]</SPAN
+></A
+></TD
+><TD
+ALIGN="LEFT"
+VALIGN="TOP"
+WIDTH="95%"
+><P
+>这里是译者给出的关于“bottom half”的一点解释，来源是google上搜索到的英文资料：</P
+><P
+>“底部”，“bottom half”常在涉及中断的设备驱动中提到。</P
+><P
+>		</P
+><P
+>当内核接收到一个中断请求，对应的设备驱动被调用。因为在这段时间内无法处理别的任何事务，
+		让中断处理尽快的完成并重新让内核返回正常的工作状态是非常重要的。就是因为这个设计思想，
+		驱动的“顶部”和“底部”的概念被提出：“顶部”是被内核调用时最先被执行的部分，
+		快速的完成一些尽量少的却是必需的工作（像对硬件或其它资源的独享访问这种必须立刻执行的操作），
+		然后做一些设置让“底部”去完成那些要求时间相对比较宽裕的，剩下的工作。</P
+><P
+> “底部”什么时候如何运作是内核的设计问题。你也许会听到“底部”的设计已经在最近的内核中被废除了。
+		这种说法不是很确切，在新内核中其实你可以去选择怎样去执行：像软中断或任务，就像它们以前那样，
+		还是加入任务队列，更像启动一个用户进程。</P
+></TD
+></TR
+></TABLE
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c1225.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1346.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Scheduling Tasks</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Symmetric Multi Processing</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>

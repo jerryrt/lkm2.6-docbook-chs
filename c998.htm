@@ -1,0 +1,486 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN""http://www.w3.org/TR/html4/loose.dtd">
+<HTML
+><HEAD
+><TITLE
+>System Calls</TITLE
+><META CHARSET="UTF-8"><META
+NAME="GENERATOR"
+CONTENT="Modular DocBook HTML Stylesheet Version 1.79"><LINK
+REL="HOME"
+TITLE="The Linux Kernel Module Programming Guide"
+HREF="book1.htm"><LINK
+REL="PREVIOUS"
+TITLE="Talking To Device Files"
+HREF="c914.htm"><LINK
+REL="NEXT"
+TITLE="Blocking Processes"
+HREF="c1068.htm"></HEAD
+><BODY
+CLASS="CHAPTER"
+BGCOLOR="#FFFFFF"
+TEXT="#000000"
+LINK="#0000FF"
+VLINK="#840084"
+ALINK="#0000FF"
+><DIV
+CLASS="NAVHEADER"
+><TABLE
+SUMMARY="Header navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TH
+COLSPAN="3"
+ALIGN="center"
+>The Linux Kernel Module Programming Guide</TH
+></TR
+><TR
+><TD
+WIDTH="10%"
+ALIGN="left"
+VALIGN="bottom"
+><A
+HREF="c914.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="80%"
+ALIGN="center"
+VALIGN="bottom"
+></TD
+><TD
+WIDTH="10%"
+ALIGN="right"
+VALIGN="bottom"
+><A
+HREF="c1068.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+></TABLE
+><HR
+ALIGN="LEFT"
+WIDTH="100%"></DIV
+><DIV
+CLASS="CHAPTER"
+><H1
+><A
+NAME="AEN998"
+></A
+>Chapter 8. System Calls</H1
+><DIV
+CLASS="SECT1"
+><H1
+CLASS="SECT1"
+><A
+NAME="AEN1000"
+>系统调用</A
+></H1
+><A
+NAME="AEN1002"
+></A
+><P
+>到目前为止，我们所做的只是使用完善的内核机制注册<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件和处理设备的对象。如果只是想写一个设备驱动，
+	这些内核程序员设定的方式已经足够了。但是，你不想做一些不寻常的事吗，
+	想使你的系统看起来不一样吗？当然，这取决你自己。</P
+><P
+>这里可是一个危险的地方。下面的这个例子中，我关闭了系统调用
+	<CODE
+CLASS="FUNCTION"
+>open()</CODE
+>。这意味着我无法打开任何文件，执行任何程序，连使用
+	<B
+CLASS="COMMAND"
+>shutdown</B
+>关机都不行，关机只能靠摁电源按钮了。幸运的话，不会有文件丢失。
+	要保证不丢失文件的话，在<B
+CLASS="COMMAND"
+>insmod</B
+>和
+	<B
+CLASS="COMMAND"
+>rmmod</B
+>之前请执行<B
+CLASS="COMMAND"
+>sync</B
+>命令。
+
+	<A
+NAME="AEN1012"
+></A
+>
+	<A
+NAME="AEN1014"
+></A
+>
+	<A
+NAME="AEN1016"
+></A
+>
+	<A
+NAME="AEN1018"
+></A
+>
+
+	</P
+><P
+>别管什么<TT
+CLASS="FILENAME"
+>/proc</TT
+>文件和什么设备文件了，
+	它们只是小的细节问题。所有进程同内核打交道的根本方式是系统调用。
+	当一个进程需要内核提供某项服务时（像打开一个文件，生成一个新进程，或要求更多的内存），
+	就会发生系统调用。如果你想你的系统运作方式看起来有意思点，这就是你动手的地方。
+	顺便说一句，如果你想知道没个程序使用了哪些系统调用，运行<B
+CLASS="COMMAND"
+>strace &lt;arguments&gt;</B
+>。</P
+><A
+NAME="AEN1023"
+></A
+><P
+>总的来说，一个用户进程是不应该也不能够直接访问内核的。它不能访问内核的内存，
+	也不能调用内核的函数。这是CPU的硬件保护机制决定的（这也是为什么叫做“保护模式”的原因）。</P
+><A
+NAME="AEN1026"
+></A
+><P
+>系统调用是这条规则的例外。所发生的事是一个进程用合适的值填充寄存器，
+	然后调用一条跳转到已被定义过的内核中的位置的指令（当然，这些定义过的位置是对于用户进程可读的，
+	但是显然是不可写的）。在Intel架构中，这是通过 0x80 中断完成的。硬件明白一旦你跳转到这个位置，
+	你就不再是在处处受限的用户态中运行了，而是在无所不能的内核态中。</P
+><P
+>内核中的进程可以跳转过去的位置叫做系统调用。那儿将检查系统调用的序号，
+	这些序号将告诉内核用户进程需要什么样的服务。然后，通过查找系统调用表(
+	<CODE
+CLASS="VARNAME"
+>sys_call_table</CODE
+>) 找到内核函数的地址，调用该函数。当函数返回时，
+	再做一些系统检查，接着就返回用户进程（或是另一个进程，如果该进程的时间用完了）。
+	如果你想阅读一下这方面的源代码，它们就在文件
+	<TT
+CLASS="FILENAME"
+>arch/$&#60;$architecture$&#62;$/kernel/entry.S</TT
+>中
+	<CODE
+CLASS="FUNCTION"
+>ENTRY(system_call)</CODE
+>行的下面。</P
+><A
+NAME="AEN1033"
+></A
+><A
+NAME="AEN1035"
+></A
+><A
+NAME="AEN1037"
+></A
+><A
+NAME="AEN1039"
+></A
+><P
+>所以，如果我们想改变某个系统调用的运作方式，我们只需要用我们自己的函数去实现它
+	(通常只是加一点我们自己的代码，然后调用原函数)然后改变系统调用表
+	(<CODE
+CLASS="VARNAME"
+>sys_call_table</CODE
+>)中的指针值使它指向我们的函数。因为这些模块将在以后卸载，
+	我们不想系统因此而不稳定，所以<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>中恢复系统调用表是非常重要的。</P
+><P
+>这就是这样的一个模块。我们可以“监视”一个特定的用户，然后使用
+	<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>输出该用户打开的每个文件的消息。在结束前，我们用自己的
+	<CODE
+CLASS="FUNCTION"
+>our_sys_open</CODE
+>函数替换了打开文件的系统调用。该函数检查当前进程的用户序号（uid，user's id），
+	如果匹配我们监视的用户的序号，它调用<CODE
+CLASS="FUNCTION"
+>printk()</CODE
+>输出将要打开的文件的名字。
+	要不然，就用同样的参数调用原始的<CODE
+CLASS="FUNCTION"
+>open()</CODE
+>函数，真正的打开文件。</P
+><A
+NAME="AEN1049"
+></A
+><P
+>函数<CODE
+CLASS="FUNCTION"
+>init_module</CODE
+>改变了系统调用表中的恰当位置的值然后用一个变量保存下来。函数
+	<CODE
+CLASS="FUNCTION"
+>cleanup_module</CODE
+>则使用该变量将所有东西还原。这种处理方法其实是很危险的。想象一下，
+	如果我们有两个这样的模块，A和B。A用A_open替换了系统的sys_open函数，而B用B_open。现在，我们先把模块A加载，
+	那么原先的系统调用被A_open替代了，A_open在完成工作后自身又会调用原始的sys_open函数 。接着，我们加载B模块，
+	它用B_open更改了现在的已更改为A_open（显然它认为是原始的sys_open系统调用）的系统调用。</P
+><P
+>现在，如果B先卸载，一切正常。系统调用会还原到A_open，而A_open又会调用原始的sys_open。
+	但是，一旦A先卸载，系统就会崩溃。A的卸载会将系统调用还原到原始的sys_open，把B从链中切断。
+	此时再卸载B，B会将系统调用恢复到它认为的初始状态，也就是A_open，但A_open已经不在内存中了。
+	乍一看来，我们似乎可以通过检测系统调用是否与我们的open函数相同，如果不相同则什么都不做
+	（这样B就不会尝试在卸载时恢复系统调用表）。但其实这样更糟。当A先被卸载时，它将检测到系统
+	调用已被更改为B_open，所以A将不会在卸载时恢复系统调用表中相应的项。此时不幸的事发生了，
+	B_open将仍然调用已经不存在的A_open，这样即使你不卸载B模块，系统也崩溃了。</P
+><P
+>但是这种替换系统调用的方法是违背正式应用中系统的稳定和可靠原则的。所以，为了防止潜在的对系统调用表
+	修改带来的危害，系统调用表sys_call_table不再被内核导出。这意味着如果你想顺利的运行这个例子，你必须为你的
+	内核树打补丁来导出sys_call_table，在example目录内你将找到相关的补丁和说明。正如同你想像的那样，这可不是
+	儿戏，如果你的系统非常宝贵(例如这不是你的系统，或系统很难恢复)，你最好还是放弃。你将需要获取这个指南中 全部的源代码的tar包，里面有补丁和说明。取决于你的内核版本，你可能需要手工去打补丁。还在这里看吗？好了， 这就是本章。如果Wyle E. Coyote是一个内核黑客，这将是他首先会尝试的东西。;)
+	</P
+><A
+NAME="AEN1057"
+></A
+><A
+NAME="AEN1059"
+></A
+><A
+NAME="AEN1061"
+></A
+><DIV
+CLASS="EXAMPLE"
+><A
+NAME="AEN1064"
+></A
+><P
+><B
+>Example 8-1. syscall.c</B
+></P
+><PRE
+CLASS="PROGRAMLISTING"
+>/*
+ *  syscall.c
+ *
+ *  System call "stealing" sample.
+ */
+
+/* 
+ * Copyright (C) 2001 by Peter Jay Salzman 
+ */
+
+/* 
+ * The necessary header files 
+ */
+
+/*
+ * Standard in kernel modules 
+ */
+#include &#60;linux/kernel.h&#62;	/* We're doing kernel work */
+#include &#60;linux/module.h&#62;	/* Specifically, a module, */
+#include &#60;linux/moduleparam.h&#62;	/* which will have params */
+#include &#60;linux/unistd.h&#62;	/* The list of system calls */
+
+/* 
+ * For the current (process) structure, we need
+ * this to know who the current user is. 
+ */
+#include &#60;linux/sched.h&#62;
+#include &#60;asm/uaccess.h&#62;
+
+/* 
+ * The system call table (a table of functions). We
+ * just define this as external, and the kernel will
+ * fill it up for us when we are insmod'ed
+ *
+ * sys_call_table is no longer exported in 2.6.x kernels.
+ * If you really want to try this DANGEROUS module you will
+ * have to apply the supplied patch against your current kernel
+ * and recompile it.
+ */
+extern void *sys_call_table[];
+
+/* 
+ * UID we want to spy on - will be filled from the
+ * command line 
+ */
+static int uid;
+module_param(uid, int, 0644);
+
+/* 
+ * A pointer to the original system call. The reason
+ * we keep this, rather than call the original function
+ * (sys_open), is because somebody else might have
+ * replaced the system call before us. Note that this
+ * is not 100% safe, because if another module
+ * replaced sys_open before us, then when we're inserted
+ * we'll call the function in that module - and it
+ * might be removed before we are.
+ *
+ * Another reason for this is that we can't get sys_open.
+ * It's a static variable, so it is not exported. 
+ */
+asmlinkage int (*original_call) (const char *, int, int);
+
+/* 
+ * The function we'll replace sys_open (the function
+ * called when you call the open system call) with. To
+ * find the exact prototype, with the number and type
+ * of arguments, we find the original function first
+ * (it's at fs/open.c).
+ *
+ * In theory, this means that we're tied to the
+ * current version of the kernel. In practice, the
+ * system calls almost never change (it would wreck havoc
+ * and require programs to be recompiled, since the system
+ * calls are the interface between the kernel and the
+ * processes).
+ */
+asmlinkage int our_sys_open(const char *filename, int flags, int mode)
+{
+	int i = 0;
+	char ch;
+
+	/* 
+	 * Check if this is the user we're spying on 
+	 */
+	if (uid == current-&#62;uid) {
+		/* 
+		 * Report the file, if relevant 
+		 */
+		printk("Opened file by %d: ", uid);
+		do {
+			get_user(ch, filename + i);
+			i++;
+			printk("%c", ch);
+		} while (ch != 0);
+		printk("\n");
+	}
+
+	/* 
+	 * Call the original sys_open - otherwise, we lose
+	 * the ability to open files 
+	 */
+	return original_call(filename, flags, mode);
+}
+
+/* 
+ * Initialize the module - replace the system call 
+ */
+int init_module()
+{
+	/* 
+	 * Warning - too late for it now, but maybe for
+	 * next time... 
+	 */
+	printk(KERN_ALERT "I'm dangerous. I hope you did a ");
+	printk(KERN_ALERT "sync before you insmod'ed me.\n");
+	printk(KERN_ALERT "My counterpart, cleanup_module(), is even");
+	printk(KERN_ALERT "more dangerous. If\n");
+	printk(KERN_ALERT "you value your file system, it will ");
+	printk(KERN_ALERT "be \"sync; rmmod\" \n");
+	printk(KERN_ALERT "when you remove this module.\n");
+
+	/* 
+	 * Keep a pointer to the original function in
+	 * original_call, and then replace the system call
+	 * in the system call table with our_sys_open 
+	 */
+	original_call = sys_call_table[__NR_open];
+	sys_call_table[__NR_open] = our_sys_open;
+
+	/* 
+	 * To get the address of the function for system
+	 * call foo, go to sys_call_table[__NR_foo]. 
+	 */
+
+	printk(KERN_INFO "Spying on UID:%d\n", uid);
+
+	return 0;
+}
+
+/* 
+ * Cleanup - unregister the appropriate file from /proc 
+ */
+void cleanup_module()
+{
+	/* 
+	 * Return the system call back to normal 
+	 */
+	if (sys_call_table[__NR_open] != our_sys_open) {
+		printk(KERN_ALERT "Somebody else also played with the ");
+		printk(KERN_ALERT "open system call\n");
+		printk(KERN_ALERT "The system may be left in ");
+		printk(KERN_ALERT "an unstable state.\n");
+	}
+
+	sys_call_table[__NR_open] = original_call;
+}</PRE
+></DIV
+></DIV
+></DIV
+><DIV
+CLASS="NAVFOOTER"
+><HR
+ALIGN="LEFT"
+WIDTH="100%"><TABLE
+SUMMARY="Footer navigation table"
+WIDTH="100%"
+BORDER="0"
+CELLPADDING="0"
+CELLSPACING="0"
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+><A
+HREF="c914.htm"
+ACCESSKEY="P"
+>Prev</A
+></TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+><A
+HREF="book1.htm"
+ACCESSKEY="H"
+>Home</A
+></TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+><A
+HREF="c1068.htm"
+ACCESSKEY="N"
+>Next</A
+></TD
+></TR
+><TR
+><TD
+WIDTH="33%"
+ALIGN="left"
+VALIGN="top"
+>Talking To Device Files</TD
+><TD
+WIDTH="34%"
+ALIGN="center"
+VALIGN="top"
+>&nbsp;</TD
+><TD
+WIDTH="33%"
+ALIGN="right"
+VALIGN="top"
+>Blocking Processes</TD
+></TR
+></TABLE
+></DIV
+></BODY
+></HTML
+>
